@@ -1,38 +1,31 @@
-"""
-Analysis Prompts
-All AI prompts and prompt templates
-"""
 
-FRAUD_MONITORING_PROMPT = """Analyze this fraud monitoring report and provide a concise summary.
+from pathlib import Path
+from functools import lru_cache
 
-Format:
+PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-**Overall:** [Stable/Watch/At Risk] — [one-line reason]
+@lru_cache(maxsize=128)
+def _load_prompt_file(filepath):
+    return filepath.read_text(encoding="utf-8").strip()
 
-**Top takeaways:**
-1. [Key finding with numbers]
-2. [Key finding with numbers]
-3. [Key finding with numbers]
-4. [Key finding with numbers]
+def get_analysis_prompt(club, model_type, monitoring_approach):
+    club = club.upper()
+    model_type = model_type.lower().replace(" ", "_")
+    monitoring_approach = monitoring_approach.lower().replace(" ", "_")
+    guardrails = _load_prompt_file(PROMPTS_DIR / "_base" / "guardrails.txt")
+    club_gen = _load_prompt_file(PROMPTS_DIR / "_base" / f"{club.lower()}_generic.txt")
+    model_type_p = _load_prompt_file(PROMPTS_DIR / "model_types" / f"{model_type}.txt")
+    monitoring_p = _load_prompt_file(PROMPTS_DIR / "monitoring_approaches" / f"{monitoring_approach}.txt")
+    return f"Analyze this report.\n\n{guardrails}\n\n{club_gen}\n\n{model_type_p}\n\n{monitoring_p}"
 
-**Positives:**
-- [What went well]
-- [What went well]
+MODEL_REGISTRY = {
+    "uptop_v3": {"club": "CL", "type": "risk_model", "monitoring": "risk_model"},
+    "darwin": {"club": "CL", "type": "risk_model", "monitoring": "risk_model"}
+}
 
-Focus on latest data, use actual numbers, keep under 200 words."""
-
-
-def get_analysis_prompt(prompt_type="fraud_monitoring"):
-    """
-    Get prompt by type
-    
-    Args:
-        prompt_type: Type of prompt to retrieve
-        
-    Returns:
-        str: The prompt text
-    """
-    prompts = {
-        "fraud_monitoring": FRAUD_MONITORING_PROMPT
-    }
-    return prompts.get(prompt_type, FRAUD_MONITORING_PROMPT)
+def get_prompt_by_model_name(model_name):
+    name = model_name.lower().replace(" ", "_")
+    if name not in MODEL_REGISTRY:
+        raise ValueError(f"Model {model_name} not found")
+    c = MODEL_REGISTRY[name]
+    return get_analysis_prompt(c["club"], c["type"], c["monitoring"])

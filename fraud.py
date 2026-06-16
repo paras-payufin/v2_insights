@@ -11,10 +11,14 @@ from datetime import datetime
 # Import from local modules
 from config.settings import (
     S3_BUCKET, S3_FOLDER, SUPPORTED_EXTENSIONS,
+)
+
+from utils.utils import (
     TOQAN_API_KEY, TOQAN_BASE_URL, RECIPIENT_EMAIL
 )
-from config.prompts import get_analysis_prompt
-from email.template import create_html_email
+
+from config.prompts import get_prompt_by_model_name
+from email.template import create_html_email , EMAIL_CONFIG 
 from email.sender import send_email
 from utils.helpers import make_api_request, get_analysis, remove_emojis
 
@@ -90,6 +94,9 @@ def upload_to_toqan(file_name, file_buffer):
     return file_id
 
 
+MODEL_NAME = 'fraud'
+
+
 def create_analysis_conversation(file_id):
     """
     Create analysis conversation with Toqan
@@ -100,11 +107,13 @@ def create_analysis_conversation(file_id):
     Returns:
         str: Conversation ID
     """
-    print(f"\n🤖 Creating analysis conversation...")
-    time.sleep(5)  # Rate limit protection
+    print(f"\n🤖 Creating analysis conversation for {MODEL_NAME}...")
+    time.sleep(5)
     
     headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
-    prompt = get_analysis_prompt("fraud_monitoring")
+    prompt = get_prompt_by_model_name(MODEL_NAME)
+    
+    print(f"✓ Loaded prompt for {MODEL_NAME} (length: {len(prompt)} chars)")
     
     conversation_data = {
         "user_message": prompt,
@@ -142,20 +151,21 @@ def wait_for_analysis(conversation_id):
     return analysis
 
 
-def send_report_email(file_name, analysis):
+def send_report_email(file_name, analysis, model_name='fraud'):  # ✅ Add model_name parameter
     """
     Generate and send email report
     
     Args:
         file_name: Name of analyzed file
         analysis: Analysis text from Toqan
+        model_name: Model type for email configuration
     """
     print(f"\n📧 Creating and sending email...")
     
-    html_email = create_html_email(file_name, analysis)
+    html_email = create_html_email(file_name, analysis, model_name)  # ✅ Pass model_name
     text_email = remove_emojis(analysis)
     
-    subject = f"Fraud Monitoring Report - {file_name} - {datetime.now().strftime('%Y-%m-%d')}"
+    subject = f"{EMAIL_CONFIG.get(model_name, EMAIL_CONFIG['default'])['title']} - {file_name} - {datetime.now().strftime('%Y-%m-%d')}"
     
     send_email(
         subject=subject,
@@ -163,6 +173,7 @@ def send_report_email(file_name, analysis):
         text_content=text_email,
         recipients=RECIPIENT_EMAIL
     )
+
 
 
 def main():
@@ -190,7 +201,7 @@ def main():
         analysis = wait_for_analysis(conversation_id)
         
         # Step 6: Send email report
-        send_report_email(file_name, analysis)
+        send_report_email(file_name, analysis, MODEL_NAME)  # ✅ Pass MODEL_NAME
         
         print("\n" + "=" * 80)
         print("✅ SUCCESS - Pipeline completed!")
