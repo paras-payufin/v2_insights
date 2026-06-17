@@ -56,7 +56,7 @@ def make_api_request(method, url, headers, json_data=None, files=None, max_retri
         max_retries: Maximum retry attempts
         
     Returns:
-        Response object
+        Response object (HTTP 2xx only; raises requests.HTTPError otherwise, except 429 which is retried)
     """
     for attempt in range(max_retries):
         try:
@@ -73,7 +73,10 @@ def make_api_request(method, url, headers, json_data=None, files=None, max_retri
                 print(f"⏳ Rate limit hit. Waiting {wait_time}s...")
                 time.sleep(wait_time)
                 continue
-            
+
+            if not response.ok:
+                response.raise_for_status()
+
             return response
             
         except requests.exceptions.Timeout:
@@ -99,35 +102,65 @@ def get_analysis(conversation_id, headers, base_url):
         str: Complete analysis text
     """
     print(f"⏳ Waiting for analysis (min {MIN_ANALYSIS_LENGTH} chars)...")
-    
+
+    analysis_messages = []
+    full_analysis = ""
+
     for attempt in range(MAX_POLL_ATTEMPTS):
         time.sleep(POLL_INTERVAL)
-        
+
         response = requests.post(
             f"{base_url}/find_conversation",
             headers=headers,
             json={"conversation_id": conversation_id},
-            timeout=30
+            timeout=30,
         )
-        
-        if response.status_code == 200:
+
+        if response.status_code == 429:
+            wait_time = min(60, (2 ** min(attempt, 4)) * 2)
+            print(f"⏳ find_conversation rate limited (429). Waiting {wait_time}s...")
+            time.sleep(wait_time)
+            continue
+
+        if 500 <= response.status_code < 600:
+            print(
+                f"⚠ find_conversation server error {response.status_code}; "
+                f"will retry ({attempt + 1}/{MAX_POLL_ATTEMPTS})..."
+            )
+            continue
+
+        if response.status_code != 200:
+            response.raise_for_status()
+
+        try:
             messages = response.json()
-            analysis_messages = []
-            
-            # Extract non-thinking messages from Toqan
-            for msg in messages:
-                if msg.get("author_id") == "Toqan":
-                    message_text = msg.get("message", "")
-                    if not is_thinking_message(message_text):
-                        analysis_messages.append(message_text)
-            
-            # Check if analysis is complete
-            if analysis_messages:
-                full_analysis = "\n\n".join(analysis_messages)
-                if len(full_analysis) >= MIN_ANALYSIS_LENGTH:
-                    print(f"✓ Analysis complete ({len(full_analysis)} chars)")
-                    return full_analysis
-                print(f"⏳ Analysis in progress... ({len(full_analysis)} chars)")
-    
+        except ValueError as e:
+            snippet = (response.text or "")[:300]
+            raise RuntimeError(
+                f"find_conversation returned non-JSON (HTTP {response.status_code}): {snippet!r}"
+            ) from e
+
+        if not isinstance(messages, list):
+            raise RuntimeError(
+                f"find_conversation expected a JSON list, got {type(messages).__name__}"
+            )
+
+        analysis_messages = []
+
+        # Extract non-thinking messages from Toqan
+        for msg in messages:
+            if msg.get("author_id") == "Toqan":
+                message_text = msg.get("message", "")
+                if not is_thinking_message(message_text):
+                    analysis_messages.append(message_text)
+
+        # Check if analysis is complete
+        if analysis_messages:
+            full_analysis = "\n\n".join(analysis_messages)
+            if len(full_analysis) >= MIN_ANALYSIS_LENGTH:
+                print(f"✓ Analysis complete ({len(full_analysis)} chars)")
+                return full_analysis
+            print(f"⏳ Analysis in progress... ({len(full_analysis)} chars)")
+
     # Return whatever we have if max attempts reached
     return full_analysis if analysis_messages else None

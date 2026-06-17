@@ -4,12 +4,16 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 *.egg-info/
+.pytest_cache/
+.mypy_cache/
 
-# Credentials
-config/settings.py
+# Credentials & local env (keep .env.example in repo)
 *credentials*
-*.env
+.env
+.env.*
+!.env.example
 
 # IDE
 .vscode/

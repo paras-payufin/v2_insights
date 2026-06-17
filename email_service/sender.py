@@ -5,7 +5,8 @@ Handles SMTP connection and email delivery
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from config.settings import SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SENDER_EMAIL
+from config.settings import SENDER_EMAIL
+from utils.utils import SMTP_PASSWORD, SMTP_PORT, SMTP_SERVER, SMTP_USERNAME
 
 
 def send_email(subject, html_content, text_content, recipients):
