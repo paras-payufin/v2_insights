@@ -31,6 +31,8 @@ Example — CLI / local main():
         raise
 """
 
+from __future__ import annotations
+
 import traceback
 from datetime import datetime, timezone
 from typing import Optional
