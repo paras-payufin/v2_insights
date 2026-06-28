@@ -33,6 +33,7 @@ Example — CLI / local main():
 
 import traceback
 from datetime import datetime, timezone
+from typing import Optional
 
 from config.settings import SENDER_EMAIL
 from email_service.sender import send_email
@@ -53,7 +54,7 @@ def dag_failure_callback(context: dict) -> None:
 
     Or attach it to individual tasks / the @dag decorator directly.
     """
-    exc: BaseException | None = context.get("exception")
+    exc: Optional[BaseException] = context.get("exception")
 
     ti = context.get("task_instance")
     dag_id   = getattr(ti, "dag_id",   None) or context.get("dag").dag_id
@@ -89,8 +90,8 @@ def notify_error(exc: Exception, source: str = "CLI / main()") -> None:
 # ── Internal ──────────────────────────────────────────────────────────────────
 
 def _send_error_email(
-    exc: BaseException | None,
-    airflow_context: dict | None,
+    exc: Optional[BaseException],
+    airflow_context: Optional[dict],
     source: str = "",
 ) -> None:
     """Build and dispatch the error email."""
