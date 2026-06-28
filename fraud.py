@@ -25,6 +25,7 @@ from email_service.template import create_html_email, EMAIL_CONFIG
 from email_service.sender import send_email
 from utils.helpers import get_analysis, make_api_request, remove_emojis
 from utils.utils import TOQAN_API_KEY, TOQAN_BASE_URL
+from email_service.error_notifier import dag_failure_callback, notify_error
 
 MODEL_NAME = "fraud"
 
@@ -176,6 +177,7 @@ def main():
         print("=" * 80)
     except Exception as e:
         print(f"\n❌ ERROR: {str(e)}")
+        notify_error(e, source="main() — local CLI run")
         raise
     finally:
         if buffer:
@@ -206,6 +208,7 @@ if dag is not None:
             "owner": "data",
             "retries": 2,
             "retry_delay": timedelta(minutes=5),
+            "on_failure_callback": dag_failure_callback,
         },
         tags=["toqan", "fraud", "insights"],
     )
