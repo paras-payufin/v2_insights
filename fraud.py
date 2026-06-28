@@ -8,6 +8,9 @@ Deploy: put this file (or repo) on Airflow's DAG path / PYTHONPATH. Ensure
 Airflow is imported only when available so `python fraud.py` still works locally
 without installing apache-airflow.
 """
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import time
 from datetime import datetime, timedelta
 from io import BytesIO
