@@ -185,87 +185,96 @@ def main():
 
 
 # ============================================================================
-# AIRFLOW DAG DEFINITION (TaskFlow — 4 tasks; analysis not in XCom)
+# AIRFLOW DAG DEFINITION (classic PythonOperator style)
 # ============================================================================
 
 try:
-    from airflow.decorators import dag, task  # type: ignore[import-untyped]
+    from airflow import DAG  # type: ignore[import-untyped]
+    from airflow.operators.python import PythonOperator  # type: ignore[import-untyped]
+    from airflow.utils.dates import days_ago  # type: ignore[import-untyped]
+    _AIRFLOW_AVAILABLE = True
 except ImportError:  # local run without Airflow installed
-    dag = None
-    task = None
+    _AIRFLOW_AVAILABLE = False
 
 
-if dag is not None:
+if _AIRFLOW_AVAILABLE:
 
-    @dag(
+    # ── Task callables ────────────────────────────────────────────────────
+    # Each callable pulls/pushes via XCom so tasks stay decoupled.
+
+    def _task_find_latest(**context):
+        s3_key, file_name, file_size = find_latest_file()
+        context["ti"].xcom_push(key="s3_key",    value=s3_key)
+        context["ti"].xcom_push(key="file_name", value=file_name)
+        context["ti"].xcom_push(key="file_size_mb", value=round(file_size, 4))
+
+    def _task_upload_file(**context):
+        ti        = context["ti"]
+        s3_key    = ti.xcom_pull(task_ids="find_latest",  key="s3_key")
+        file_name = ti.xcom_pull(task_ids="find_latest",  key="file_name")
+        buffer    = None
+        try:
+            buffer  = download_file(s3_key)
+            file_id = upload_to_toqan(file_name, buffer)
+        finally:
+            if buffer:
+                buffer.close()
+        ti.xcom_push(key="file_id", value=file_id)
+
+    def _task_start_analysis(**context):
+        ti      = context["ti"]
+        file_id = ti.xcom_pull(task_ids="upload_file", key="file_id")
+        conv_id = create_analysis_conversation(file_id)
+        ti.xcom_push(key="conversation_id", value=conv_id)
+
+    def _task_fetch_and_email(**context):
+        ti        = context["ti"]
+        conv_id   = ti.xcom_pull(task_ids="start_analysis", key="conversation_id")
+        file_name = ti.xcom_pull(task_ids="find_latest",    key="file_name")
+        analysis  = wait_for_analysis(conv_id)
+        send_report_email(file_name, analysis, MODEL_NAME)
+
+    # ── DAG ───────────────────────────────────────────────────────────────
+
+    DAG_DEFAULT_ARGS = {
+        "owner": "data",
+        "retries": 2,
+        "retry_delay": timedelta(minutes=5),
+        "on_failure_callback": dag_failure_callback,
+    }
+
+    with DAG(
         dag_id="toqan_fraud_insights",
+        default_args=DAG_DEFAULT_ARGS,
         description="S3 → Toqan analysis → email (fraud monitoring insights)",
-        schedule="@daily",  # Runs once per day at midnight
-        start_date=datetime(2026, 6, 17),  # Updated to June 17, 2026
+        schedule_interval="@daily",
+        start_date=days_ago(1),
         catchup=False,
         max_active_runs=1,
-        default_args={
-            "owner": "data",
-            "retries": 2,
-            "retry_delay": timedelta(minutes=5),
-            "on_failure_callback": dag_failure_callback,
-        },
         tags=["toqan", "fraud", "insights"],
-    )
-    def toqan_fraud_insights():
-        """
-        Fraud analysis pipeline (4 tasks).
+    ) as dag:
 
-        ``analysis`` text is not passed through XCom (size limits); the final
-        task loads it in-process then sends email.
-        """
+        t1_find_latest = PythonOperator(
+            task_id="find_latest",
+            python_callable=_task_find_latest,
+        )
 
-        @task(task_id="find_latest")
-        def find_latest():
-            """Find latest file in S3 bucket."""
-            s3_key, file_name, file_size = find_latest_file()
-            return {
-                "s3_key": s3_key,
-                "file_name": file_name,
-                "file_size_mb": round(file_size, 4),
-            }
+        t2_upload_file = PythonOperator(
+            task_id="upload_file",
+            python_callable=_task_upload_file,
+        )
 
-        @task(task_id="upload_file")
-        def upload_file(meta: dict) -> dict:
-            """Download from S3 and upload to Toqan API."""
-            buffer = None
-            try:
-                buffer = download_file(meta["s3_key"])
-                file_id = upload_to_toqan(meta["file_name"], buffer)
-                return {**meta, "file_id": file_id}
-            finally:
-                if buffer:
-                    buffer.close()
+        t3_start_analysis = PythonOperator(
+            task_id="start_analysis",
+            python_callable=_task_start_analysis,
+        )
 
-        @task(task_id="start_analysis")
-        def start_analysis(meta: dict) -> dict:
-            """Create analysis conversation with Toqan."""
-            conversation_id = create_analysis_conversation(meta["file_id"])
-            return {**meta, "conversation_id": conversation_id}
+        t4_fetch_and_email = PythonOperator(
+            task_id="fetch_analysis_and_send_email",
+            python_callable=_task_fetch_and_email,
+        )
 
-        @task(task_id="fetch_analysis_and_send_email")
-        def fetch_analysis_and_send_email(meta: dict) -> dict:
-            """Retrieve Toqan analysis and send email (keeps large text off XCom)."""
-            analysis = wait_for_analysis(meta["conversation_id"])
-            send_report_email(meta["file_name"], analysis, MODEL_NAME)
-            return {
-                "status": "success",
-                "file_name": meta["file_name"],
-                "timestamp": datetime.now().isoformat(),
-            }
-
-        file_meta = find_latest()
-        uploaded = upload_file(file_meta)
-        conversation = start_analysis(uploaded)
-        fetch_analysis_and_send_email(conversation)
-
-    # Instantiate the DAG
-    toqan_fraud_insights_dag = toqan_fraud_insights()
+        t1_find_latest >> t2_upload_file >> t3_start_analysis >> t4_fetch_and_email
 
 
 # ============================================================================
