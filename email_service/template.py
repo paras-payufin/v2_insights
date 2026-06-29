@@ -19,6 +19,13 @@ EMAIL_CONFIG = {
         'accent_color': '#0f4c75',
         'sections_to_extract': ['Overall', 'Top takeaways', 'Positives', 'Key findings', 'Recommendations']
     },
+    'uptop_v3': {
+        'title': 'UpTop V3 Model Monitoring Report',
+        'subtitle': 'Bajaj Strategic Credit Risk Analysis',
+        'primary_color': '#0d2137',
+        'accent_color': '#1a4a7a',
+        'sections_to_extract': ['Overall', 'Top takeaways', 'PSI', 'CSI', 'Key findings', 'Recommendations']
+    },
     'financial': {
         'title': 'Financial Analysis Report',
         'subtitle': 'Executive Insights',
