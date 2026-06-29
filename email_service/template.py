@@ -364,7 +364,7 @@ def create_html_email(file_name, analysis_text, model_name='default'):
                     
                     <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, {config['primary_color']} 0%, {config['accent_color']} 100%); padding: 48px 48px 40px 48px; text-align: center;">
+                        <td style="background-color: {config['primary_color']}; background: linear-gradient(135deg, {config['primary_color']} 0%, {config['accent_color']} 100%); padding: 48px 48px 40px 48px; text-align: center;">
                             <h1 style="color: #ffffff; margin: 0 0 8px 0; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">{config['title']}</h1>
                             <p style="color: rgba(255,255,255,0.85); margin: 0 0 16px 0; font-size: 13px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">{config['subtitle']}</p>
                             <div style="background-color: rgba(255,255,255,0.15); padding: 12px 20px; border-radius: 6px; display: inline-block;">
