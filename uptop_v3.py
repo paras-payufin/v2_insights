@@ -18,7 +18,7 @@ from io import BytesIO
 import boto3
 
 from config.settings import (
-    RECIPIENT_EMAIL,
+    RECIPIENT_EMAIL_UPTOP_V3,
     S3_BUCKET,
     S3_FOLDER_BAJAJ,
     SUPPORTED_EXTENSIONS,
@@ -151,7 +151,7 @@ def send_report_email(file_name, analysis, model_name=MODEL_NAME):
         subject=subject,
         html_content=html_email,
         text_content=text_email,
-        recipients=RECIPIENT_EMAIL,
+        recipients=RECIPIENT_EMAIL_UPTOP_V3,
     )
     print("✓ Email sent successfully")
 
@@ -247,7 +247,7 @@ if _AIRFLOW_AVAILABLE:
     }
 
     with DAG(
-        dag_id="toqan_uptop_v3_insights",
+        dag_id="uptop_v3_insights",
         default_args=DAG_DEFAULT_ARGS,
         description="S3 → Toqan analysis → email (UpTop V3 model monitoring)",
         schedule_interval="0 9 * * 0",  # Every Sunday at 09:00 AM

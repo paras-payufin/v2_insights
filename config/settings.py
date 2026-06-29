@@ -28,6 +28,12 @@ S3_FOLDER_UPTOP  = os.environ.get("S3_FOLDER", "uptop_v3/")
 # ============================================================================
 SENDER_EMAIL = "airflow-eks-prod@paysense.in"
 RECIPIENT_EMAIL = ["paras.verma@payufin.com", "prakhar.gupta@payufin.com"]
+RECIPIENT_EMAIL_UPTOP_V3 = [
+    "paras.verma@payufin.com",
+    "saurav.sarkar@wibmo.com",
+    "sumit.yadav@payufin.com",
+    "abhishek.singh@payufin.com",
+]
 
 # ============================================================================
 # FILE CONFIGURATION
