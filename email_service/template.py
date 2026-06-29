@@ -24,7 +24,7 @@ EMAIL_CONFIG = {
         'subtitle': 'Bajaj Strategic Credit Risk Analysis',
         'primary_color': '#0d2137',
         'accent_color': '#1a4a7a',
-        'sections_to_extract': ['Overall', 'Top takeaways', 'PSI', 'CSI', 'Key findings', 'Recommendations']
+        'sections_to_extract': ['Overall', 'KPI Summary', 'PSI Analysis', 'CSI & Variable Stability', 'Score Distribution & Risk Segments', 'Disbursal Trends', 'Early Warning Alerts', 'Key Findings', 'Recommendations']
     },
     'financial': {
         'title': 'Financial Analysis Report',
