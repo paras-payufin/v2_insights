@@ -9,8 +9,19 @@ import os
 # ============================================================================
 # S3 CONFIGURATION
 # ============================================================================
-S3_BUCKET = os.environ.get("S3_BUCKET", "lake-prod-ds-projects")
-S3_FOLDER = os.environ.get("S3_FOLDER", "CL_TC_reports/")
+# S3_BUCKET = os.environ.get("S3_BUCKET", "lake-prod-ds-projects")
+# S3_FOLDER = os.environ.get("S3_FOLDER", "CL_TC_reports/")
+
+
+
+# S3 Config — Sandbox bucket
+S3_BUCKET        = os.environ.get("S3_BUCKET", "dsa-data-sbox")
+
+# Set folder based on which file you're working with
+S3_FOLDER_BAJAJ  = os.environ.get("S3_FOLDER", "bajaj_strategic/")
+S3_FOLDER_FRAUD  = os.environ.get("S3_FOLDER", "fraud/")
+S3_FOLDER_UPTOP  = os.environ.get("S3_FOLDER", "uptop_v3/")
+
 
 # ============================================================================
 # EMAIL IDENTITIES (not loaded from .env)

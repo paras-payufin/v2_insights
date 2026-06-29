@@ -20,7 +20,7 @@ import boto3
 from config.settings import (
     RECIPIENT_EMAIL,
     S3_BUCKET,
-    S3_FOLDER,
+    S3_FOLDER_FRAUD,
     SUPPORTED_EXTENSIONS,
 )
 from config.prompts import get_prompt_by_model_name
@@ -44,9 +44,9 @@ def find_latest_file():
     Returns:
         tuple: (s3_key, file_name, file_size)  # file_size in MB
     """
-    print(f"\n📂 Finding latest file in s3://{S3_BUCKET}/{S3_FOLDER}")
+    print(f"\n📂 Finding latest file in s3://{S3_BUCKET}/{S3_FOLDER_FRAUD}")
     s3 = boto3.client("s3")
-    response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_FOLDER)
+    response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_FOLDER_FRAUD)
 
     files = [
         obj
