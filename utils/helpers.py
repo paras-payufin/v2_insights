@@ -147,10 +147,21 @@ def get_analysis(conversation_id, headers, base_url):
 
         analysis_messages = []
 
-        # Extract non-thinking messages from Toqan
+        # Debug: log message structure on first attempt so we can see what the API returns
+        if attempt == 0 and messages:
+            first = messages[0]
+            print(f"  [debug] message keys: {list(first.keys())}")
+            print(f"  [debug] first author_id: {first.get('author_id')!r}")
+            print(f"  [debug] total messages: {len(messages)}")
+
+        # Extract non-thinking messages from Toqan.
+        # Check both "Toqan" and any non-user/non-human author as fallback.
+        user_authors = {"user", "human", "User", "Human"}
         for msg in messages:
-            if msg.get("author_id") == "Toqan":
-                message_text = msg.get("message", "")
+            author = msg.get("author_id", "")
+            message_text = msg.get("message", "")
+            is_toqan = (author == "Toqan") or (author and author not in user_authors)
+            if is_toqan and message_text:
                 if not is_thinking_message(message_text):
                     analysis_messages.append(message_text)
 
