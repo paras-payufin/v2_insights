@@ -22,43 +22,73 @@ def remove_emojis(text):
     return emoji_pattern.sub(r'', text)
 
 
+def strip_thinking_preamble(message_text):
+    """
+    Remove AI thinking/planning preamble from the start of a message and return
+    only the actual analysis content.
+
+    Toqan sometimes returns thinking reasoning followed by the real analysis in
+    one message. This function finds the first recognised section header and
+    returns everything from that point onward.
+
+    Returns the original text unchanged if no preamble is detected.
+    """
+    import re
+
+    # Section headers that mark the start of real analysis output.
+    # Matches bold (**Overall:**) or plain (Overall:) variants, case-insensitive.
+    section_headers = [
+        "overall", "top takeaway", "key takeaway", "positives", "key finding",
+        "recommendation", "kpi summary", "psi analysis", "csi", "disbursal",
+        "early warning", "score distribution", "variable stability",
+        "summary", "status", "model health",
+    ]
+    pattern = r'(?:^|\n)\s*\*{0,2}(' + '|'.join(section_headers) + r')[:\s*]'
+    match = re.search(pattern, message_text, re.IGNORECASE)
+    if match:
+        extracted = message_text[match.start():].lstrip('\n')
+        if len(extracted) > 200:
+            return extracted
+
+    return message_text
+
+
 def is_thinking_message(message_text):
     """
-    Detect AI meta-commentary vs actual analysis
-    
-    Args:
-        message_text: Message text to check
-        
-    Returns:
-        bool: True if message is thinking/meta-commentary
+    Return True only when the ENTIRE message is a thinking/meta-commentary
+    with no real analysis content embedded — i.e. the preamble stripper found
+    nothing to salvage.
     """
-    # Patterns that indicate AI meta-commentary / thinking preamble rather than
-    # actual analysis. Checked against the START of the message only (first 120
-    # chars) to avoid false-positives on legitimate analysis that happens to
-    # contain these words mid-sentence.
+    stripped = strip_thinking_preamble(message_text).strip()
+
+    # If stripping moved us significantly into the text, real content exists
+    original_stripped = message_text.strip()
+    if len(original_stripped) > 0 and stripped != original_stripped:
+        return False  # has real content after the preamble
+
+    # Pure thinking-only message patterns (start of message)
     thinking_start_patterns = [
         "let me", "now let me", "i will", "i'll", "i need to", "i should",
         "i am going to", "to analyze", "to summarize", "in order to",
         "perfect", "great!", "sure,", "certainly", "of course", "absolutely",
-        "here is", "here are", "i have analyzed", "i've analyzed", "i've reviewed",
-        "based on my analysis", "after reviewing", "looking at the data",
-        "i'll now", "allow me", "i'll start", "i'll begin", "first, i",
-        "now i'll", "now i will", "let's", "let us",
+        "here is my", "here are", "i have analyzed", "i've analyzed",
+        "i've reviewed", "based on my analysis", "after reviewing",
+        "looking at the data", "i'll now", "allow me", "i'll start",
+        "i'll begin", "first, i", "now i'll", "now i will", "let's", "let us",
+        "the user wants", "the user has", "they want", "they've provided",
     ]
-    # Also catch anywhere in the full message for strong thinking signals
     thinking_anywhere_patterns = [
         "here are the key deliverables", "i need to perform",
         "now let me perform", "let me perform", "let me analyze",
         "let me create", "let me generate", "let me examine",
     ]
-    stripped = message_text.strip()
+
     start_lower = stripped[:120].lower()
     full_lower = stripped.lower()
 
     for pattern in thinking_start_patterns:
         if start_lower.startswith(pattern):
             return True
-
     for pattern in thinking_anywhere_patterns:
         if pattern in full_lower:
             return True
@@ -190,8 +220,9 @@ def get_analysis(conversation_id, headers, base_url):
                 or author in user_author_exact
             )
             if not is_user_msg and message_text:
-                if not is_thinking_message(message_text):
-                    analysis_messages.append(message_text)
+                cleaned = strip_thinking_preamble(message_text)
+                if not is_thinking_message(cleaned):
+                    analysis_messages.append(cleaned)
 
         # Check if analysis is complete
         if analysis_messages:
