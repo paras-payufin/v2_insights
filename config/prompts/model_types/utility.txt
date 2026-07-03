@@ -1,1 +1,1 @@
-[TODO]
+Utility model — transaction-level scoring for fraud and risk decisions.

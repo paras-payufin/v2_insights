@@ -11,13 +11,22 @@ def get_analysis_prompt(club, model_type, model_specific, monitoring_approach):
     club = club.upper()
     model_type = model_type.lower().replace(" ", "_")
     monitoring_approach = monitoring_approach.lower().replace(" ", "_")
-    
+
+    model_specific_p = _load_prompt_file(PROMPTS_DIR / "model_specific" / f"{model_specific}.txt")
+
+    # If the model-specific file is a complete self-contained prompt (starts with
+    # a role definition), return it directly. Assembling it with the stub files
+    # (guardrails, club context, model_type, monitoring) adds noise and causes
+    # the model to echo the instruction fragments rather than produce analysis.
+    if model_specific_p.lower().startswith(("you are", "role:")):
+        return model_specific_p
+
+    # Legacy assembly path — used for models that rely on the stub files.
     guardrails = _load_prompt_file(PROMPTS_DIR / "_base" / "guardrails.txt")
     club_gen = _load_prompt_file(PROMPTS_DIR / "_base" / f"{club.lower()}_generic.txt")
     model_type_p = _load_prompt_file(PROMPTS_DIR / "model_types" / f"{model_type}.txt")
-    model_specific_p = _load_prompt_file(PROMPTS_DIR / "model_specific" / f"{model_specific}.txt")
     monitoring_p = _load_prompt_file(PROMPTS_DIR / "monitoring_approaches" / f"{monitoring_approach}.txt")
-    
+
     return f"Analyze this report.\n\n{guardrails}\n\n{club_gen}\n\n{model_type_p}\n\n{model_specific_p}\n\n{monitoring_p}"
 
 MODEL_REGISTRY = {

@@ -1,1 +1,1 @@
-[TODO]
+Monitoring cadence: real-time / biweekly. Focus on latest period vs prior period trend.
