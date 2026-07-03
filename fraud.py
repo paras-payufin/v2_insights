@@ -145,15 +145,27 @@ def send_report_email(file_name, analysis, model_name="fraud"):
     """Generate and send email report."""
     print("\n📧 Creating and sending email...")
 
+    attachments = None
+
     if _is_html_output(analysis):
-        # Toqan returned a full HTML report — send it directly as the email body.
-        # The HTML already contains all styling, charts, and sections.
-        print("  (HTML output detected — sending Toqan report directly)")
+        # Toqan returned a full HTML report.
+        # - Email body: the HTML renders inline (tables, RAG colors, cards visible)
+        # - Attachment: same HTML saved as a .html file so recipient can open it
+        #   in a browser to see fully interactive Chart.js charts.
+        print("  (HTML output detected — sending inline + .html attachment)")
         html_email = analysis
         text_email = (
-            f"Fraud Model Monitoring Report — {file_name}\n"
-            "Please open this email in an HTML-compatible client to view the full report."
+            f"Fraud Model Monitoring Report — {file_name}\n\n"
+            "The full interactive report is attached as an HTML file.\n"
+            "Open the attachment in a browser to view all charts.\n\n"
+            "Please view this email in an HTML-compatible client for the inline summary."
         )
+        report_date = datetime.now().strftime("%Y-%m-%d")
+        attachments = [{
+            "filename": f"fraud_monitoring_report_{report_date}.html",
+            "content":  analysis,
+            "mimetype": "text/html",
+        }]
     else:
         html_email = create_html_email(file_name, analysis, model_name)
         text_email = remove_emojis(analysis)
@@ -168,6 +180,7 @@ def send_report_email(file_name, analysis, model_name="fraud"):
         html_content=html_email,
         text_content=text_email,
         recipients=RECIPIENT_EMAIL,
+        attachments=attachments,
     )
     print("✓ Email sent successfully")
 
