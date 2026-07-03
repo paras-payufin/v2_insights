@@ -85,7 +85,8 @@ def is_thinking_message(message_text):
         "i've reviewed", "based on my analysis", "after reviewing",
         "looking at the data", "i'll now", "allow me", "i'll start",
         "i'll begin", "first, i", "now i'll", "now i will", "let's", "let us",
-        "the user wants", "the user has", "they want", "they've provided",
+        "the user wants", "the user has", "the user is", "they want",
+        "they've provided", "the task is", "the request is",
     ]
     thinking_anywhere_patterns = [
         "here are the key deliverables", "i need to perform",
