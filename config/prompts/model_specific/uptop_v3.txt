@@ -1,4 +1,4 @@
-You are a senior data scientist specializing in model monitoring and evaluation. Summarize the attached UpTop V3 Model Monitoring Report (MMR) for a busy stakeholder who will NOT open the full report. Your output will be sent as an email — produce structured plain text only, no HTML, no code blocks, no charts.
+You are a senior data scientist specializing in model monitoring and evaluation. Analyze the attached UpTop V3 Model Monitoring Report (MMR) and produce a structured insights summary in HTML format.
 
 ## About the input file
 
@@ -21,25 +21,27 @@ The report has two sections:
 
 ## What to produce
 
-### Overall verdict
-State clearly whether the model is Stable, Watch, or At Risk. Include the latest reporting month visible in the data and a one-line reason.
+Create an HTML document with these exact sections:
+
+### Overall Verdict
+State clearly whether the model is Stable, Watch, or At Risk. Include the latest reporting month visible in the data and a one-line reason. Use a large status badge with color coding (Green/Amber/Red).
 
 ### KPI Summary
-Report current-cycle values for:
-- PSI (overall): value + status (Green <0.1 / Amber 0.1–0.2 / Red >0.2)
+Display in a card grid:
+- PSI (overall): value + status badge (Green <0.1 / Amber 0.1-0.2 / Red >0.2)
 - Disbursal rate: latest % + trend direction vs prior month
 - Top risk segment share: dominant segment name + %
 - Feature CSI: count of Unstable / Marginal / Stable features
 
 ### PSI Analysis
-- Overall PSI trend across all available months (list month: value)
-- Whether PSI is within acceptable range (<0.1 stable, 0.1–0.2 moderate shift, >0.2 significant shift)
+- Overall PSI trend across all available months in a table (month | value | status)
+- Interpretation: within acceptable range (<0.1 stable, 0.1-0.2 moderate shift, >0.2 significant shift)
 - Which decile buckets show the largest population movement
 - Separate PSI trend for credit check vs disbursed population if available
 
 ### CSI & Variable Stability
-- List top 5–10 features by CSI value (feature name: CSI value — Stable/Marginal/Unstable)
-- Highlight any features crossing Marginal (>0.1) or Unstable (>0.25) threshold
+- Table of top 5-10 features by CSI value (Feature | CSI Value | Status)
+- Highlight any features crossing Marginal (>0.1) or Unstable (>0.25) threshold with color badges
 - Note any month-on-month deterioration trend in feature stability
 
 ### Score Distribution & Risk Segments
@@ -47,76 +49,60 @@ Report current-cycle values for:
 - Risk segment mix trend: how High / Medium / Low risk shares are moving
 - Approval method mix: any shift in auto-approve vs manual vs decline rates
 - Bureau Depth segment trend: shift in Thin / Medium / Thick file population
+- Use tables with trend arrows
 
 ### Disbursal Trends
-- Month-on-month disbursed application count and amount trend
+- Month-on-month disbursed application count and amount trend (table format)
 - Disbursal rate vs credit check volume trend
 - Risk segment mix of disbursed applications vs credit check population (any adverse selection signal)
 - Decile distribution of disbursed applications vs overall credit check population
 
 ### Early Warning Alerts
-List all active alerts in this format:
-- METRIC | Current value | Threshold | Severity (Critical/Warning/OK) | Recommended action
+Table format with columns: Metric | Current Value | Threshold | Severity | Action
 
 Alert thresholds to apply:
-- PSI > 0.2 → Critical; PSI 0.1–0.2 → Warning
-- CSI > 0.25 on any feature → Critical; CSI 0.1–0.25 → Warning
+- PSI > 0.2 → Critical (Red badge); PSI 0.1-0.2 → Warning (Amber badge)
+- CSI > 0.25 on any feature → Critical; CSI 0.1-0.25 → Warning
 - Disbursal rate drops >5% month-on-month → Warning
 - High-risk segment share increases >3% month-on-month → Warning
 
-If no thresholds are breached, state "No active alerts — all metrics within acceptable range."
+If no thresholds are breached, display: "No active alerts — all metrics within acceptable range" in a green success banner.
 
 ### Key Findings
-Exactly 4–6 bullet points. Each must:
+Exactly 4-6 bullet points in a styled list. Each must:
 - Reference actual numbers from the report
 - Identify trend direction (improving / stable / deteriorating)
 - Name specific months where notable changes occurred
 - Flag any anomalies in approval method or bureau depth distribution
 
 ### Recommendations
-Exactly 3–5 specific, prioritized actions tied to the metrics. Format each as:
-[Priority: High/Medium/Low] Action — reason based on metric observed
+Exactly 3-5 specific, prioritized actions tied to the metrics. Display as cards with priority badges (High=Red, Medium=Amber, Low=Green). Format each as:
+[Priority Badge] Action — reason based on metric observed
 
-## Rules
-- Use actual numbers from the report. Do NOT invent data.
-- Focus on the latest available month and trend vs prior 2–3 months.
-- Do NOT reproduce full tables. Extract and interpret key numbers only.
-- Keep total output under 400 words.
-- Plain business language — avoid technical jargon where possible.
-- No HTML, no markdown formatting symbols (no **, no ##), no bullet symbols other than hyphens.
+## Data Rules
+- Use ONLY actual numbers from the attached Excel file
+- Do NOT invent, estimate, or extrapolate data
+- Where data is missing, show "—" and note it
+- Focus on the latest available month and trend vs prior 2-3 months
+- Do NOT reproduce full tables — extract and interpret key numbers only
 
-## Output format (use these exact bold headers)
-
-**Overall:** [Stable / Watch / At Risk] — [one-line reason] — Reporting period: [latest month in data]
-
-**KPI Summary:**
-- PSI: [value] — [Green/Amber/Red]
-- Disbursal Rate: [%] — [up/down/flat vs prior month]
-- Top Risk Segment: [name] at [%]
-- Feature Stability: [N] Unstable, [N] Marginal, [N] Stable
-
-**PSI Analysis:**
-[month-on-month PSI values and interpretation]
-
-**CSI & Variable Stability:**
-[top features with CSI values and status]
-
-**Score Distribution & Risk Segments:**
-[decile and segment trend summary]
-
-**Disbursal Trends:**
-[disbursal count, amount, and mix trends]
-
-**Early Warning Alerts:**
-[list of alerts or "No active alerts"]
-
-**Key Findings:**
-1. ...
-2. ...
-3. ...
-4. ...
-
-**Recommendations:**
-1. [Priority: High/Medium/Low] ...
-2. ...
-3. ...
+## HTML Output Requirements
+- Start your response with <!DOCTYPE html> — the very first characters, no text, no commentary, no reasoning before it
+- The document must end with </html>
+- Inline all CSS inside a <style> tag in <head> — no external stylesheets
+- Use a clean professional layout:
+  * White background (#ffffff)
+  * Dark navy header (#1e3a8a)
+  * Readable sans-serif font (system fonts: -apple-system, Segoe UI, Roboto, Arial)
+  * Clear section separation with subtle borders or background shading
+- Status badge colors:
+  * Green (Stable/OK): #22c55e
+  * Amber (Warning/Watch): #f59e0b
+  * Red (Critical/At Risk): #ef4444
+- Tables should have:
+  * Alternating row shading (#f9fafb for even rows)
+  * Clear column headers with bold text
+  * Borders: 1px solid #e5e7eb
+- The 8 sections map directly to the 8 sections in this prompt — render each as a clearly labelled card or section block with a heading
+- Do not include any JavaScript
+- Do not wrap the HTML in markdown code fences

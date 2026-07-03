@@ -96,18 +96,21 @@ def upload_to_toqan(file_name, file_buffer):
 
 def create_analysis_conversation(file_id):
     """Create analysis conversation with Toqan; returns conversation_id."""
-    print(f"\n🤖 Creating analysis conversation for {MODEL_NAME}...")
+    print(f"\n[create_analysis_conversation] START — model={MODEL_NAME!r}")
     time.sleep(5)
 
     headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
     prompt = get_prompt_by_model_name(MODEL_NAME)
 
-    print(f"✓ Loaded prompt for {MODEL_NAME} (length: {len(prompt)} chars)")
+    print(f"  [create_analysis_conversation] prompt length : {len(prompt)} chars")
+    print(f"  [create_analysis_conversation] prompt preview: {prompt[:100]!r}")
+    print(f"  [attach] file_id being sent: {file_id!r}")
 
     conversation_data = {
         "user_message": prompt,
-        "private_user_files": [{"ID": file_id}],
+        "private_user_files": [{"id": file_id}],
     }
+    print(f"  [attach] payload: {str(conversation_data)[:400]!r}")
 
     conv_response = make_api_request(
         "POST",
@@ -116,8 +119,23 @@ def create_analysis_conversation(file_id):
         json_data=conversation_data,
     )
 
-    conversation_id = conv_response.json()["conversation_id"]
-    print(f"✓ Conversation created (ID: {conversation_id})")
+    full_resp = conv_response.json()
+    print(f"  [attach] create_conversation full response: {full_resp}")
+    print(f"  [attach] conversation_id: {full_resp.get('conversation_id')!r}")
+
+    resp_str = str(full_resp).lower()
+    if file_id and file_id.lower() in resp_str:
+        print(f"  [attach] ✓ file_id confirmed in response")
+    else:
+        print(f"  [attach] ⚠ WARNING — file_id NOT found in response. "
+              f"File may not be attached. Check 'private_user_files' key format.")
+
+    for key in ("files", "attached_files", "file_ids", "attachments", "private_user_files"):
+        if key in full_resp:
+            print(f"  [attach] response field '{key}': {full_resp[key]!r}")
+
+    conversation_id = full_resp["conversation_id"]
+    print(f"[create_analysis_conversation] END")
     return conversation_id
 
 
@@ -135,25 +153,41 @@ def wait_for_analysis(conversation_id):
     return analysis
 
 
+def _is_html_output(text):
+    """Return True when Toqan's output is a self-contained HTML document."""
+    return text.strip()[:20].lower().lstrip().startswith(("<!doctype html", "<html"))
+
+
 def send_report_email(file_name, analysis, model_name=MODEL_NAME):
     """Generate and send email report."""
     print("\n📧 Creating and sending email...")
 
-    html_email = create_html_email(file_name, analysis, model_name)
-    text_email = remove_emojis(analysis)
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    config = EMAIL_CONFIG.get(model_name, EMAIL_CONFIG["default"])
+    subject = f"{config['title']} - {file_name} - {date_str}"
 
-    subject = (
-        f"{EMAIL_CONFIG.get(model_name, EMAIL_CONFIG['default'])['title']} - "
-        f"{file_name} - {datetime.now().strftime('%Y-%m-%d')}"
-    )
-
-    send_email(
-        subject=subject,
-        html_content=html_email,
-        text_content=text_email,
-        recipients=RECIPIENT_EMAIL_UPTOP_V3,
-    )
-    print("✓ Email sent successfully")
+    if _is_html_output(analysis):
+        text_body = (
+            f"UpTop V3 Model Monitoring Report — {file_name} — {date_str}\n\n"
+            f"Please view this email in an HTML-capable email client."
+        )
+        send_email(
+            subject=subject,
+            html_content=analysis,
+            text_content=text_body,
+            recipients=RECIPIENT_EMAIL_UPTOP_V3,
+        )
+        print("✓ HTML report sent as email body")
+    else:
+        html_email = create_html_email(file_name, analysis, model_name)
+        text_email = remove_emojis(analysis)
+        send_email(
+            subject=subject,
+            html_content=html_email,
+            text_content=text_email,
+            recipients=RECIPIENT_EMAIL_UPTOP_V3,
+        )
+        print("✓ Plain text report sent with template wrapper")
 
 
 # ============================================================================
