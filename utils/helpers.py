@@ -27,16 +27,26 @@ def strip_thinking_preamble(message_text):
     Remove AI thinking/planning preamble from the start of a message and return
     only the actual analysis content.
 
-    Toqan sometimes returns thinking reasoning followed by the real analysis in
-    one message. This function finds the first recognised section header and
-    returns everything from that point onward.
+    Handles two output types:
+    - HTML output: looks for <!DOCTYPE or <html as the real start
+    - Plain text output: looks for the first recognised section header
 
     Returns the original text unchanged if no preamble is detected.
     """
     import re
 
+    stripped = message_text.strip()
+
+    # ── HTML output ───────────────────────────────────────────────────────
+    # If Toqan generated an HTML document, find where it actually starts.
+    html_start = re.search(r'<!DOCTYPE\s+html|<html[\s>]', stripped, re.IGNORECASE)
+    if html_start:
+        extracted = stripped[html_start.start():]
+        if len(extracted) > 200:
+            return extracted
+
+    # ── Plain text output ─────────────────────────────────────────────────
     # Section headers that mark the start of real analysis output.
-    # Matches bold (**Overall:**) or plain (Overall:) variants, case-insensitive.
     section_headers = [
         "overall", "top takeaway", "key takeaway", "positives", "key finding",
         "recommendation", "kpi summary", "psi analysis", "csi", "disbursal",

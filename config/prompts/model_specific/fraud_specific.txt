@@ -1,37 +1,66 @@
-You are a fraud model monitoring analyst. Summarize the attached Fraud Model Monitoring Report (MMR) for a busy stakeholder who will NOT open the full report. Your output will be sent as an email — produce structured plain text only.
+Role: Senior fraud model monitoring analyst for Lazypay. Read the supplied raw fraud_monitoring_report HTML and produce a polished executive summary as a self-contained HTML file. Use ONLY metrics present in the input. Do NOT invent data. Where data is missing (NA/blank), show "—".
 
-## About the input file
+Label the report clearly: "Live Pipeline Data" (not simulated).
 
-This is a monthly/biweekly Fraud MMR for the TC (Transaction) utility fraud model. The report contains:
-- Monthly model performance metrics: Frauds detected, Holdout FTS (Fraud Transaction Score), Test FTS after declines, % reduction, % capture from Holdout, % GMV Declined, Precision
-- Biweekly breakdown per cohort: score >= cutoff (bad/red), score < cutoff (good/green); test population is the live production population
+Output: A complete, self-contained HTML document. Start your response DIRECTLY with <!DOCTYPE html> — no explanation, no preamble, no commentary before or after the HTML.
 
-## What to produce
+Merchants: Myntra, Blinkit, Zomato, BMS, District Dining.
+Cadence: biweekly (1st–15th / 16th–EOM) + month-end snapshots from 1 May'25.
+Evaluation: TEST population (model actively declining) vs HOLDOUT population (scores observed, no declines).
+Favorable: score < cutoff (green); Breach: score >= cutoff (red).
 
-Produce ONLY the following sections in order, using EXACTLY these bold headers:
+== SECTIONS TO INCLUDE ==
 
-**Overall:** State clearly whether the model is Stable, Watch, or At Risk. One line. Include the latest reporting month visible in the data.
+Section 1 — Header
+- Title: "Fraud Model Monitoring Report" | Subtitle: "Lazypay"
+- Latest biweekly period, generated date, monitoring start: "1st May'25 onwards"
+- Overall RAG status badge (derived from worst merchant + PSI/CSI breaches)
+- Merchant count chip (5)
 
-**Top takeaways:**
-List exactly 4-5 bullet points. Each must be one actionable sentence with actual numbers. Prioritize in this order:
-- Performance issues: falling % capture, rising Holdout/Test FTS, dropping % reduction or precision
-- Business impact: unusually high % GMV Declined
-- Specific cohort-level problems (name the cohort)
-- Biweekly red flags in the latest column
+Section 2 — Executive Summary
+Per-merchant KPI scorecard for the LATEST period with delta vs prior period (up/down arrow) and RAG:
+Cumulative Frauds | Holdout FTS | Test FTS after declines | % Reduction | % Capture from Holdout | % GMV Declined | Precision
+Follow with 3–5 sentence narrative: overall fraud trend, best/worst merchant, whether declines are holding.
 
-**Positives:**
-Maximum 2 bullets. Only include if there are clear positives. Skip this section if nothing material is positive.
+Section 3 — Configurable Parameters Panel
+Styled card: PSI warning 0.10 / critical 0.20 | CSI warning 0.10 / critical 0.25 | model score cutoff (per merchant) | FTS deterioration tolerance | GMV decline tolerance | capture rate floor | precision floor | biweekly periods to chart: 10 | merchants: all 5.
 
-**Key findings:**
-3-5 bullets with deeper trend observations. Reference specific months and metric movements.
+Section 4 — Monthly Performance
+One card per merchant with month-end columns: Frauds | Holdout FTS | Test FTS after declines | % reduction | % capture from Holdout | % GMV Declined | precision.
+Latest month column highlighted. Chart.js line chart: Test FTS after declines trend across months (all merchants overlaid).
 
-**Recommendations:**
-3-5 specific, prioritized actions tied to the metrics observed. Each must reference the metric that triggered it.
+Section 5 — PSI & CSI Stability
+PSI table (monthly values) + line chart with threshold bands (green ≤0.10, amber 0.10–0.20, red >0.20).
+CSI top-features table (top 10–15 features × monthly CSI) + horizontal bar chart latest month, colour-coded.
+Do NOT include AUC, KS, Gini, DPD, or rank-order tables.
 
-## Rules
-- Start DIRECTLY with **Overall:** — no preamble of any kind
-- Use actual numbers from the report. Do NOT invent data.
-- Focus on the latest highlighted column and recent trend vs 1-2 prior periods
-- Do NOT dump tables or list every metric
-- Keep total output under 250 words
-- Plain business language, no technical jargon
+Section 6 — Biweekly Merchant Deep-dive
+One expandable card per merchant. Full 39-row metric table from input with colour coding:
+- Volume rows: Days, Txn Attempt Count/Amount, Successful Txn Count/Amount, Fraud Txn Count/Amount, ATS, Fraud/Success ratio
+- ML decline rows: Decline count/amount, Decline count rate %, Decline amount rate %
+- TEST block (light blue #e6f3ff): Successful GMV, GMV share, Fraud amount/count, Fraud amount rate, Fraud count rate
+- HOLDOUT block (orange #ffe7cc): same metrics on holdout population
+- Decline vs Test rows (light blue): Decline count/amount, Decline count rate wrt Test, Decline amount rate wrt Test
+- Holdout precision block (orange): Holdout Successful Txn count/share, Fraud count, Fraud count rate, Precision
+Green text = score < cutoff | Red text = score >= cutoff | Latest column highlighted | Sticky header + first column.
+Per merchant mini Chart.js charts: Test FTS vs Holdout FTS over biweekly periods | % GMV Declined | ML Decline count rate.
+
+Section 7 — Early Warning Alerts
+Active alerts table: PSI drift | CSI feature drift | Holdout fraud rate breach | Test fraud rate breach | FTS deterioration | GMV spike | Capture rate drop | Precision collapse | Decline rate spike.
+Each row: metric, merchant, current value, threshold, severity (Critical/Warning/OK), recommended action, timestamp.
+
+Section 8 — Summary & Actions
+3–5 bullet findings (portfolio + per-merchant where material).
+Action table: Finding | Recommended Action | Owner | Priority | Timeline.
+Next review date (next 1st or 16th). Footer: team, version, confidentiality note.
+
+== DESIGN REQUIREMENTS ==
+- Single self-contained HTML file, all CSS inline in <style> block
+- Chart.js via CDN (https://cdn.jsdelivr.net/npm/chart.js) — only external dependency
+- Sticky left nav: Executive Summary | Monthly Metrics | PSI/CSI | Merchant Deep-dives | Alerts | Actions
+- Responsive (desktop + tablet) + @media print rules
+- Colours: header navy #0f2d5c | cards white with subtle border | RAG: green #2ecc71 / amber #f39c12 / red #e74c3c | accent blue #3498db | TEST tint #e6f3ff | HOLDOUT tint #ffe7cc
+- Alternating table rows, latest column highlighted with a distinct background
+- Sticky colour legend bar above biweekly tables
+- System font: -apple-system, Segoe UI, Roboto, Arial
+- Report equivalent to 6–8 printed pages

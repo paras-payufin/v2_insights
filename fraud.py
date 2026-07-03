@@ -135,12 +135,28 @@ def wait_for_analysis(conversation_id):
     return analysis
 
 
+def _is_html_output(text):
+    """Return True when Toqan returned a full HTML document."""
+    t = text.strip().lower()
+    return t.startswith("<!doctype html") or t.startswith("<html")
+
+
 def send_report_email(file_name, analysis, model_name="fraud"):
     """Generate and send email report."""
     print("\n📧 Creating and sending email...")
 
-    html_email = create_html_email(file_name, analysis, model_name)
-    text_email = remove_emojis(analysis)
+    if _is_html_output(analysis):
+        # Toqan returned a full HTML report — send it directly as the email body.
+        # The HTML already contains all styling, charts, and sections.
+        print("  (HTML output detected — sending Toqan report directly)")
+        html_email = analysis
+        text_email = (
+            f"Fraud Model Monitoring Report — {file_name}\n"
+            "Please open this email in an HTML-compatible client to view the full report."
+        )
+    else:
+        html_email = create_html_email(file_name, analysis, model_name)
+        text_email = remove_emojis(analysis)
 
     subject = (
         f"{EMAIL_CONFIG.get(model_name, EMAIL_CONFIG['default'])['title']} - "
@@ -247,7 +263,7 @@ if _AIRFLOW_AVAILABLE:
     }
 
     with DAG(
-        dag_id="toqan_fraud_insights",
+        dag_id="fraud_insights",
         default_args=DAG_DEFAULT_ARGS,
         description="S3 → Toqan analysis → email (fraud monitoring insights)",
         schedule_interval="@daily",
