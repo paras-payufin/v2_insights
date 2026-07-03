@@ -187,22 +187,16 @@ def send_report_email(file_name, analysis, model_name="fraud"):
     subject = f"{config['title']} - {file_name} - {date_str}"
 
     if _is_html_output(analysis):
-        attachment_filename = f"fraud_monitoring_report_{date_str}.html"
-        html_body = _build_wrapper_email_body(file_name, date_str, model_name)
-        text_body = (
-            f"Please find the Fraud Monitoring Report attached.\n"
-            f"Source file: {file_name}\nGenerated: {date_str}\n\n"
-            f"Open the attached .html file in any browser to view the full report."
-        )
         send_email(
             subject=subject,
-            html_content=html_body,
-            text_content=text_body,
+            html_content=analysis,
+            text_content=(
+                f"Fraud Monitoring Report — {file_name} — {date_str}\n\n"
+                f"Please view this email in an HTML-capable email client."
+            ),
             recipients=RECIPIENT_EMAIL,
-            attachment_bytes=analysis.encode("utf-8"),
-            attachment_filename=attachment_filename,
         )
-        print(f"✓ HTML report attached as {attachment_filename}")
+        print("✓ HTML report sent as email body")
     else:
         html_email = create_html_email(file_name, analysis, model_name)
         text_email = remove_emojis(analysis)

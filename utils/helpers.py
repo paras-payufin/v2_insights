@@ -27,36 +27,41 @@ def strip_thinking_preamble(message_text):
     Remove AI thinking/planning preamble from the start of a message and return
     only the actual analysis content.
 
-    Handles two output types:
-    - HTML output: looks for <!DOCTYPE or <html as the real start
-    - Plain text output: looks for the first recognised section header
+    Uses structural pattern detection — no hardcoded section names — so it works
+    for any prompt format.
 
     Returns the original text unchanged if no preamble is detected.
     """
-    import re
-
     stripped = message_text.strip()
 
     # ── HTML output ───────────────────────────────────────────────────────
-    # If Toqan generated an HTML document, find where it actually starts.
+    # Find where the actual HTML document starts.
     html_start = re.search(r'<!DOCTYPE\s+html|<html[\s>]', stripped, re.IGNORECASE)
     if html_start:
         extracted = stripped[html_start.start():]
         if len(extracted) > 200:
             return extracted
 
-    # ── Plain text output ─────────────────────────────────────────────────
-    # Section headers that mark the start of real analysis output.
-    section_headers = [
-        "overall", "top takeaway", "key takeaway", "positives", "key finding",
-        "recommendation", "kpi summary", "psi analysis", "csi", "disbursal",
-        "early warning", "score distribution", "variable stability",
-        "summary", "status", "model health",
-    ]
-    pattern = r'(?:^|\n)\s*\*{0,2}(' + '|'.join(section_headers) + r')[:\s*]'
-    match = re.search(pattern, message_text, re.IGNORECASE)
-    if match:
-        extracted = message_text[match.start():].lstrip('\n')
+    # ── Plain text: bold markdown header at line start ────────────────────
+    # Matches **Anything:** or **Anything —** or **Anything** on its own line.
+    # Works generically for any prompt that uses bold section headers.
+    bold_header = re.search(
+        r'(?:^|\n)\s*\*\*[^*\n]{2,80}\*\*\s*[:\-]?\s*\n',
+        stripped,
+    )
+    if bold_header:
+        extracted = stripped[bold_header.start():].lstrip('\n')
+        if len(extracted) > 200:
+            return extracted
+
+    # ── Plain text: numbered sections ────────────────────────────────────
+    # Matches "1. Title" or "1) Title" at line start.
+    numbered = re.search(
+        r'(?:^|\n)\s*\d+[\.\)]\s+[A-Z][^\n]{5,}',
+        stripped,
+    )
+    if numbered:
+        extracted = stripped[numbered.start():].lstrip('\n')
         if len(extracted) > 200:
             return extracted
 
@@ -69,6 +74,11 @@ def is_thinking_message(message_text):
     with no real analysis content embedded — i.e. the preamble stripper found
     nothing to salvage.
     """
+    # A complete HTML document is always real content — never thinking.
+    if re.search(r'<!DOCTYPE\s+html|<html[\s>]', message_text, re.IGNORECASE) \
+            and '</html>' in message_text.lower():
+        return False
+
     stripped = strip_thinking_preamble(message_text).strip()
 
     # If stripping moved us significantly into the text, real content exists
@@ -246,16 +256,17 @@ def get_analysis(conversation_id, headers, base_url):
             if is_html:
                 # HTML reports are large (30-150 KB). Only accept when the
                 # document is structurally complete AND meets the minimum size.
-                html_done = (
+                html_complete = (
                     "</html>" in full_analysis.lower()
                     and len(full_analysis) >= MIN_HTML_ANALYSIS_LENGTH
                 )
-                if html_done:
+                if html_complete:
                     print(f"✓ HTML analysis complete ({len(full_analysis):,} chars)")
                     return full_analysis
+                closing_found = "</html>" in full_analysis.lower()
                 print(
-                    f"⏳ HTML in progress... ({len(full_analysis):,} chars, "
-                    f"complete={('</html>' in full_analysis.lower())})"
+                    f"⏳ HTML streaming... ({len(full_analysis):,} chars | "
+                    f"closing tag={'found' if closing_found else 'not yet'})"
                 )
             else:
                 if len(full_analysis) >= MIN_ANALYSIS_LENGTH:
