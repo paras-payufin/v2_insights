@@ -128,11 +128,13 @@ def create_analysis_conversation(file_id):
     print(f"  [create_analysis_conversation] prompt preview: {prompt[:100]!r}")
     print(f"  [attach] file_id being sent: {file_id!r}")
 
+    # Use lowercase "id" key — matches the Toqan API convention observed from responses
     conversation_data = {
         "user_message": prompt,
-        "private_user_files": [{"ID": file_id}],
+        "private_user_files": [{"id": file_id}],
     }
-    print(f"  [attach] payload: {conversation_data!r}"[:500])
+    print(f"  [attach] key used: 'id' (lowercase)")
+    print(f"  [attach] payload (truncated): {str(conversation_data)[:400]!r}")
 
     conv_response = make_api_request(
         "POST",
@@ -142,11 +144,19 @@ def create_analysis_conversation(file_id):
     )
 
     full_resp = conv_response.json()
-    print(f"  [attach] create_conversation full response: {full_resp}")
-    print(f"  [attach] conversation_id: {full_resp.get('conversation_id')!r}")
+    print(f"  [attach] full create_conversation response: {full_resp}")
+    print(f"  [attach] file_id sent: {file_id!r}")
 
-    # Surface any file-acknowledgement fields from the response
-    for key in ("files", "attached_files", "file_ids", "attachments"):
+    # Check whether the API acknowledged the file
+    resp_str = str(full_resp).lower()
+    if file_id and file_id.lower() in resp_str:
+        print(f"  [attach] ✓ file_id confirmed in response")
+    else:
+        print(f"  [attach] ⚠ WARNING — file_id NOT found in response. "
+              f"File may not be attached. Check 'private_user_files' key format.")
+
+    # Surface any file-acknowledgement fields
+    for key in ("files", "attached_files", "file_ids", "attachments", "private_user_files"):
         if key in full_resp:
             print(f"  [attach] response field '{key}': {full_resp[key]!r}")
 

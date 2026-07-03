@@ -22,6 +22,38 @@ def remove_emojis(text):
     return emoji_pattern.sub(r'', text)
 
 
+def extract_post_think_content(text):
+    """
+    Toqan thinking models wrap reasoning in <think>...</think> tags.
+    The real output comes after the closing </think> tag.
+
+    - If </think> is present: strip everything up to and including it,
+      return only the content after it (stripped)
+    - If <think> is present but </think> is not: model is still thinking,
+      return empty string so the poller keeps waiting
+    - If no <think> at all: return text unchanged (non-thinking model)
+    """
+    stripped = text.strip()
+
+    has_open  = bool(re.search(r'<think>', stripped, re.IGNORECASE))
+    has_close = bool(re.search(r'</think>', stripped, re.IGNORECASE))
+
+    if has_open and not has_close:
+        print("  [think] model still in <think> phase — waiting...")
+        return ""
+
+    if has_open and has_close:
+        after = re.split(r'</think>', stripped, maxsplit=1, flags=re.IGNORECASE)[-1].strip()
+        print(f"  [think] <think> block stripped — real content: {len(after)} chars")
+        if after:
+            return after
+        print("  [think] WARNING — </think> found but nothing after it. "
+              "Toqan finished thinking but produced no output.")
+        return ""
+
+    return text  # no think tags — return as-is
+
+
 def strip_thinking_preamble(message_text):
     """
     Remove AI thinking/planning preamble from the start of a message and return
@@ -247,8 +279,14 @@ def get_analysis(conversation_id, headers, base_url):
                 or author in user_author_exact
             )
             if not is_user_msg and message_text:
-                cleaned = strip_thinking_preamble(message_text)
-                if not is_thinking_message(cleaned):
+                post_think = extract_post_think_content(message_text)
+
+                if post_think == "" and "<think>" in message_text.lower():
+                    # Model still thinking or finished with no output — skip
+                    continue
+
+                cleaned = strip_thinking_preamble(post_think) if post_think else ""
+                if cleaned and not is_thinking_message(cleaned):
                     analysis_messages.append(cleaned)
 
         # Check if analysis is complete
@@ -259,6 +297,15 @@ def get_analysis(conversation_id, headers, base_url):
             is_html = full_analysis.lstrip()[:20].lower().startswith(
                 ("<!doctype html", "<html")
             )
+
+            # Compute think-tag status from all Toqan messages for the log
+            all_toqan_text = " ".join(
+                m.get("message", "") for m in messages
+                if not any(m.get("author_id", "").startswith(p) for p in user_author_prefixes)
+                and m.get("author_id", "") not in user_author_exact
+            )
+            think_done   = "</think>" in all_toqan_text.lower()
+            think_active = "<think>" in all_toqan_text.lower() and not think_done
 
             if is_html:
                 html_complete = (
@@ -274,7 +321,9 @@ def get_analysis(conversation_id, headers, base_url):
                 closing_found = "</html>" in full_analysis.lower()
                 print(
                     f"  [poll attempt {attempt + 1}/{MAX_POLL_ATTEMPTS} | "
-                    f"{elapsed}s elapsed | {len(full_analysis):,} chars | "
+                    f"{elapsed}s elapsed | "
+                    f"{len(full_analysis):,} chars | "
+                    f"think={'done' if think_done else 'active' if think_active else 'none'} | "
                     f"closing tag={'found' if closing_found else 'not yet'}]"
                 )
             else:
@@ -284,14 +333,30 @@ def get_analysis(conversation_id, headers, base_url):
                         f"{len(full_analysis):,} chars | {elapsed}s elapsed"
                     )
                     return full_analysis
+                closing_found = False
                 print(
                     f"  [poll attempt {attempt + 1}/{MAX_POLL_ATTEMPTS} | "
-                    f"{elapsed}s elapsed | {len(full_analysis):,} chars]"
+                    f"{elapsed}s elapsed | "
+                    f"{len(full_analysis):,} chars | "
+                    f"think={'done' if think_done else 'active' if think_active else 'none'} | "
+                    f"closing tag=n/a]"
                 )
         else:
+            # No qualifying messages — still compute think status for the log
+            all_toqan_text = " ".join(
+                m.get("message", "") for m in messages
+                if not any(m.get("author_id", "").startswith(p) for p in user_author_prefixes)
+                and m.get("author_id", "") not in user_author_exact
+            )
+            think_done   = "</think>" in all_toqan_text.lower()
+            think_active = "<think>" in all_toqan_text.lower() and not think_done
+            closing_found = False
             print(
                 f"  [poll attempt {attempt + 1}/{MAX_POLL_ATTEMPTS} | "
-                f"{elapsed}s elapsed | no qualifying messages yet]"
+                f"{elapsed}s elapsed | "
+                f"0 chars | "
+                f"think={'done' if think_done else 'active' if think_active else 'none'} | "
+                f"closing tag=n/a]"
             )
 
     # Max attempts reached
