@@ -27,7 +27,7 @@ S3_FOLDER_UPTOP  = os.environ.get("S3_FOLDER", "uptop_v3/")
 # EMAIL IDENTITIES (not loaded from .env)
 # ============================================================================
 SENDER_EMAIL = "airflow-eks-prod@paysense.in"
-RECIPIENT_EMAIL = ["paras.verma@payufin.com", "prakhar.gupta@payufin.com"]
+RECIPIENT_EMAIL = ["paras.verma@payufin.com"]
 RECIPIENT_EMAIL_UPTOP_V3 = [
     "paras.verma@payufin.com"
     # "saurav.sarkar@wibmo.com",
@@ -44,6 +44,7 @@ FILE_NAME_PATTERN = None  # Set regex pattern or None
 # ============================================================================
 # ANALYSIS CONFIGURATION
 # ============================================================================
-MIN_ANALYSIS_LENGTH = 1500
+MIN_ANALYSIS_LENGTH = 1500          # plain-text reports (short summaries)
+MIN_HTML_ANALYSIS_LENGTH = 30000    # HTML reports — Toqan generates 30-150 KB
 MAX_POLL_ATTEMPTS = 60
 POLL_INTERVAL = 8

@@ -5,7 +5,7 @@ Helper functions for API requests, text processing, etc.
 import re
 import time
 import requests
-from config.settings import MAX_POLL_ATTEMPTS, POLL_INTERVAL, MIN_ANALYSIS_LENGTH
+from config.settings import MAX_POLL_ATTEMPTS, POLL_INTERVAL, MIN_ANALYSIS_LENGTH, MIN_HTML_ANALYSIS_LENGTH
 
 
 def remove_emojis(text):
@@ -237,10 +237,40 @@ def get_analysis(conversation_id, headers, base_url):
         # Check if analysis is complete
         if analysis_messages:
             full_analysis = "\n\n".join(analysis_messages)
-            if len(full_analysis) >= MIN_ANALYSIS_LENGTH:
-                print(f"✓ Analysis complete ({len(full_analysis)} chars)")
-                return full_analysis
-            print(f"⏳ Analysis in progress... ({len(full_analysis)} chars)")
 
-    # Return whatever we have if max attempts reached
+            is_html = full_analysis.lstrip()[:20].lower().startswith(
+                ("<!doctype html", "<html")
+            )
+
+            if is_html:
+                # HTML reports are large (30-150 KB). Only accept when the
+                # document is structurally complete AND meets the minimum size.
+                html_done = (
+                    "</html>" in full_analysis.lower()
+                    and len(full_analysis) >= MIN_HTML_ANALYSIS_LENGTH
+                )
+                if html_done:
+                    print(f"✓ HTML analysis complete ({len(full_analysis):,} chars)")
+                    return full_analysis
+                print(
+                    f"⏳ HTML in progress... ({len(full_analysis):,} chars, "
+                    f"complete={('</html>' in full_analysis.lower())})"
+                )
+            else:
+                if len(full_analysis) >= MIN_ANALYSIS_LENGTH:
+                    print(f"✓ Analysis complete ({len(full_analysis)} chars)")
+                    return full_analysis
+                print(f"⏳ Analysis in progress... ({len(full_analysis)} chars)")
+
+    # Max attempts reached — return whatever we have.
+    # For HTML: warn if document is incomplete (missing </html>).
+    if full_analysis and full_analysis.lstrip()[:20].lower().startswith(
+        ("<!doctype html", "<html")
+    ):
+        if "</html>" not in full_analysis.lower():
+            print(
+                f"⚠ Max poll attempts reached — HTML document is incomplete "
+                f"({len(full_analysis):,} chars, no </html> closing tag). "
+                f"Toqan may need more time. Consider increasing MAX_POLL_ATTEMPTS."
+            )
     return full_analysis if analysis_messages else None
