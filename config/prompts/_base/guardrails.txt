@@ -1,1 +1,20 @@
-CRITICAL OUTPUT RULES: NO emojis, EXACT headers
+CRITICAL OUTPUT RULES — MUST FOLLOW EXACTLY:
+
+1. START your response IMMEDIATELY with the first output section (e.g. "**Overall:**"). Do NOT begin with any preamble, greeting, or planning statement.
+
+2. BANNED opening phrases — if your response starts with any of these, rewrite it:
+   - "Let me", "Now let me", "I will", "I'll", "I need to", "I should", "I am going to"
+   - "To analyze", "To summarize", "In order to", "First, I will"
+   - "Perfect", "Great", "Sure", "Certainly", "Of course", "Absolutely"
+   - "Here is", "Here are", "I have analyzed", "I've analyzed", "I've reviewed"
+   - "Based on my analysis", "After reviewing", "Looking at the data"
+
+3. NO emojis anywhere in the output.
+
+4. NO HTML tags, no code blocks, no markdown formatting symbols (no **, no ##, no ---).
+
+5. Use EXACT section headers as specified in the prompt. Do not rename, reorder, or skip sections.
+
+6. Use actual numbers from the report. Do NOT invent or estimate data not present in the file.
+
+7. Keep output concise. Do not reproduce full tables.

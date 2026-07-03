@@ -32,15 +32,38 @@ def is_thinking_message(message_text):
     Returns:
         bool: True if message is thinking/meta-commentary
     """
-    thinking_patterns = [
-        "I need to", "I'll analyze", "Let me start", "I've analyzed",
-        "Perfect! Now", "I should", "I will", "Here are the key deliverables"
+    # Patterns that indicate AI meta-commentary / thinking preamble rather than
+    # actual analysis. Checked against the START of the message only (first 120
+    # chars) to avoid false-positives on legitimate analysis that happens to
+    # contain these words mid-sentence.
+    thinking_start_patterns = [
+        "let me", "now let me", "i will", "i'll", "i need to", "i should",
+        "i am going to", "to analyze", "to summarize", "in order to",
+        "perfect", "great!", "sure,", "certainly", "of course", "absolutely",
+        "here is", "here are", "i have analyzed", "i've analyzed", "i've reviewed",
+        "based on my analysis", "after reviewing", "looking at the data",
+        "i'll now", "allow me", "i'll start", "i'll begin", "first, i",
+        "now i'll", "now i will", "let's", "let us",
     ]
-    message_lower = message_text.lower()
-    for pattern in thinking_patterns:
-        if pattern.lower() in message_lower:
+    # Also catch anywhere in the full message for strong thinking signals
+    thinking_anywhere_patterns = [
+        "here are the key deliverables", "i need to perform",
+        "now let me perform", "let me perform", "let me analyze",
+        "let me create", "let me generate", "let me examine",
+    ]
+    stripped = message_text.strip()
+    start_lower = stripped[:120].lower()
+    full_lower = stripped.lower()
+
+    for pattern in thinking_start_patterns:
+        if start_lower.startswith(pattern):
             return True
-    return len(message_text.strip()) < 100
+
+    for pattern in thinking_anywhere_patterns:
+        if pattern in full_lower:
+            return True
+
+    return len(stripped) < 100
 
 
 def make_api_request(method, url, headers, json_data=None, files=None, max_retries=5):
