@@ -179,6 +179,7 @@ def get_analysis(conversation_id, headers, base_url):
 
     analysis_messages = []
     full_analysis = ""
+    poll_start = time.time()
 
     for attempt in range(MAX_POLL_ATTEMPTS):
         time.sleep(POLL_INTERVAL)
@@ -221,12 +222,17 @@ def get_analysis(conversation_id, headers, base_url):
 
         analysis_messages = []
 
-        # Debug: log message structure on first attempt so we can see what the API returns
-        if attempt == 0 and messages:
-            first = messages[0]
-            print(f"  [debug] message keys: {list(first.keys())}")
-            print(f"  [debug] first author_id: {first.get('author_id')!r}")
-            print(f"  [debug] total messages: {len(messages)}")
+        # On first attempt log every message in full detail
+        if attempt == 0:
+            print(f"  [poll] attempt 0 — total messages: {len(messages)}")
+            for i, m in enumerate(messages):
+                print(
+                    f"  [poll] msg[{i}] "
+                    f"author={m.get('author_id')!r} "
+                    f"type={m.get('type')!r} "
+                    f"len={len(m.get('message', ''))} "
+                    f"preview={m.get('message', '')[:400]!r}"
+                )
 
         # Extract Toqan's response messages only.
         # Exclude the user/sender message — identified by "apikey_" prefix
@@ -246,6 +252,7 @@ def get_analysis(conversation_id, headers, base_url):
                     analysis_messages.append(cleaned)
 
         # Check if analysis is complete
+        elapsed = int(time.time() - poll_start)
         if analysis_messages:
             full_analysis = "\n\n".join(analysis_messages)
 
@@ -254,35 +261,55 @@ def get_analysis(conversation_id, headers, base_url):
             )
 
             if is_html:
-                # HTML reports are large (30-150 KB). Only accept when the
-                # document is structurally complete AND meets the minimum size.
                 html_complete = (
                     "</html>" in full_analysis.lower()
                     and len(full_analysis) >= MIN_HTML_ANALYSIS_LENGTH
                 )
                 if html_complete:
-                    print(f"✓ HTML analysis complete ({len(full_analysis):,} chars)")
+                    print(
+                        f"✓ HTML analysis complete — "
+                        f"{len(full_analysis):,} chars | {elapsed}s elapsed"
+                    )
                     return full_analysis
                 closing_found = "</html>" in full_analysis.lower()
                 print(
-                    f"⏳ HTML streaming... ({len(full_analysis):,} chars | "
-                    f"closing tag={'found' if closing_found else 'not yet'})"
+                    f"  [poll attempt {attempt + 1}/{MAX_POLL_ATTEMPTS} | "
+                    f"{elapsed}s elapsed | {len(full_analysis):,} chars | "
+                    f"closing tag={'found' if closing_found else 'not yet'}]"
                 )
             else:
                 if len(full_analysis) >= MIN_ANALYSIS_LENGTH:
-                    print(f"✓ Analysis complete ({len(full_analysis)} chars)")
+                    print(
+                        f"✓ Analysis complete — "
+                        f"{len(full_analysis):,} chars | {elapsed}s elapsed"
+                    )
                     return full_analysis
-                print(f"⏳ Analysis in progress... ({len(full_analysis)} chars)")
-
-    # Max attempts reached — return whatever we have.
-    # For HTML: warn if document is incomplete (missing </html>).
-    if full_analysis and full_analysis.lstrip()[:20].lower().startswith(
-        ("<!doctype html", "<html")
-    ):
-        if "</html>" not in full_analysis.lower():
+                print(
+                    f"  [poll attempt {attempt + 1}/{MAX_POLL_ATTEMPTS} | "
+                    f"{elapsed}s elapsed | {len(full_analysis):,} chars]"
+                )
+        else:
             print(
-                f"⚠ Max poll attempts reached — HTML document is incomplete "
-                f"({len(full_analysis):,} chars, no </html> closing tag). "
-                f"Toqan may need more time. Consider increasing MAX_POLL_ATTEMPTS."
+                f"  [poll attempt {attempt + 1}/{MAX_POLL_ATTEMPTS} | "
+                f"{elapsed}s elapsed | no qualifying messages yet]"
             )
+
+    # Max attempts reached
+    elapsed = int(time.time() - poll_start)
+    is_html_fallback = full_analysis.lstrip()[:20].lower().startswith(
+        ("<!doctype html", "<html")
+    ) if full_analysis else False
+    closing_present = "</html>" in full_analysis.lower() if full_analysis else False
+
+    if full_analysis:
+        print(
+            f"⚠ Max poll attempts reached — "
+            f"{len(full_analysis):,} chars | {elapsed}s elapsed | "
+            f"HTML={is_html_fallback} | closing tag={'present' if closing_present else 'MISSING'}"
+        )
+        print(f"  [fallback] first 500 chars: {full_analysis[:500]!r}")
+        print(f"  [fallback] last 200 chars : {full_analysis[-200:]!r}")
+    else:
+        print(f"⚠ Max poll attempts reached — no analysis content received after {elapsed}s")
+
     return full_analysis if analysis_messages else None
