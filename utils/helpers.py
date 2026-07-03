@@ -5,7 +5,7 @@ Helper functions for API requests, text processing, etc.
 import re
 import time
 import requests
-from config.settings import MAX_POLL_ATTEMPTS, POLL_INTERVAL, MIN_ANALYSIS_LENGTH, MIN_HTML_ANALYSIS_LENGTH
+from config.settings import MAX_POLL_ATTEMPTS, POLL_INTERVAL, MIN_ANALYSIS_LENGTH, MIN_HTML_ANALYSIS_LENGTH, THINK_DONE_PATIENCE
 
 
 def remove_emojis(text):
@@ -212,6 +212,8 @@ def get_analysis(conversation_id, headers, base_url):
     analysis_messages = []
     full_analysis = ""
     poll_start = time.time()
+    think_done_zero_streak = 0      # consecutive polls with think=done but 0 output chars
+    escalation_logged = False
 
     for attempt in range(MAX_POLL_ATTEMPTS):
         time.sleep(POLL_INTERVAL)
@@ -293,6 +295,7 @@ def get_analysis(conversation_id, headers, base_url):
         elapsed = int(time.time() - poll_start)
         if analysis_messages:
             full_analysis = "\n\n".join(analysis_messages)
+            think_done_zero_streak = 0  # chars appeared — reset patience counter
 
             is_html = full_analysis.lstrip()[:20].lower().startswith(
                 ("<!doctype html", "<html")
@@ -351,6 +354,24 @@ def get_analysis(conversation_id, headers, base_url):
             think_done   = "</think>" in all_toqan_text.lower()
             think_active = "<think>" in all_toqan_text.lower() and not think_done
             closing_found = False
+
+            if think_done:
+                think_done_zero_streak += 1
+                if think_done_zero_streak <= THINK_DONE_PATIENCE:
+                    print(
+                        f"  [think] Generation phase — </think> done, HTML not yet returned "
+                        f"(attempt {think_done_zero_streak} — normal, Toqan is writing the report)"
+                    )
+                elif not escalation_logged:
+                    print(
+                        f"  [think] ESCALATION — think done but no output after "
+                        f"{THINK_DONE_PATIENCE} polls ({elapsed}s). "
+                        f"Toqan may have stalled. Will keep polling."
+                    )
+                    escalation_logged = True
+            else:
+                think_done_zero_streak = 0  # reset if think not yet done
+
             print(
                 f"  [poll attempt {attempt + 1}/{MAX_POLL_ATTEMPTS} | "
                 f"{elapsed}s elapsed | "
@@ -375,6 +396,15 @@ def get_analysis(conversation_id, headers, base_url):
         print(f"  [fallback] first 500 chars: {full_analysis[:500]!r}")
         print(f"  [fallback] last 200 chars : {full_analysis[-200:]!r}")
     else:
+        # No output at all — if think completed, raise a clear retryable error
+        if think_done_zero_streak > 0:
+            raise RuntimeError(
+                f"Toqan completed thinking but produced no HTML output "
+                f"after {MAX_POLL_ATTEMPTS} polls ({elapsed}s). "
+                f"The file may be too large or the model stalled. "
+                f"Try re-running or check the Toqan conversation: "
+                f"{conversation_id}"
+            )
         print(f"⚠ Max poll attempts reached — no analysis content received after {elapsed}s")
 
     return full_analysis if analysis_messages else None
