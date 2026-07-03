@@ -14,10 +14,26 @@ from utils.helpers import remove_emojis
 EMAIL_CONFIG = {
     'fraud': {
         'title': 'Fraud Monitoring Report',
-        'subtitle': 'Comprehensive Risk Analysis',
+        'subtitle': 'Lazypay · Live Pipeline Data',
         'primary_color': '#1a1a2e',
         'accent_color': '#0f4c75',
-        'sections_to_extract': ['Overall', 'Top takeaways', 'Positives', 'Key findings', 'Recommendations']
+        'sections_to_extract': [
+            'Report Header',
+            'Executive Summary',
+            'Parameters',
+            'Monthly Performance',
+            'PSI & CSI Stability',
+            'Merchant Deep-Dive',
+            'Early Warning Alerts',
+            'Summary & Actions',
+        ],
+        'footer': (
+            'For any queries or clarifications regarding this report, '
+            'please feel free to reach out.<br>'
+            '<strong>Thanks &amp; Regards,</strong><br>'
+            'Paras Verma<br>'
+            'Data Science Team'
+        ),
     },
     'uptop_v3': {
         'title': 'UpTop V3 Model Monitoring Report',
