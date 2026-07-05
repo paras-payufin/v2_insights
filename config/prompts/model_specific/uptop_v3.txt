@@ -1,108 +1,211 @@
-You are a senior data scientist specializing in model monitoring and evaluation. Analyze the attached UpTop V3 Model Monitoring Report (MMR) and produce a structured insights summary in HTML format.
 
-## About the input file
 
-The report has two sections:
+**Role:**
+You are a senior data scientist specializing in model monitoring and evaluation. Your job is to generate a production-ready, visually engaging, and comprehensive Model Monitoring Report (MMR) that is easy for both technical and non-technical team members to interpret and act upon.
 
-**Section 1 — Credit Check Data** (application stage):
-- Current Status by Credit Check Month / Current Status % — application status trends, % Disbursed month-on-month
-- V3 Bucket by Credit Check Month / V3 Bucket % / PSI Overall — model decile distribution and Population Stability Index (PSI expected to be slightly elevated due to post-whitelisting stage)
-- Risk Segment by Credit Check Month / Risk Segment % — segment distribution using UpTop V3 + Bureau Depth combination
-- Approval Method by Credit Check Month / Approval Method % — approval method distribution trends
-- Bureau Depth Segment by Credit Check Month / Bureau Depth Segment % — Bureau Depth heuristic model distribution (measures bureau profile data richness)
-- Features Overall — CSI (Characteristic Stability Index) of input features month-on-month
+**Task:**
+Create a single-file, self-contained HTML model monitoring report from the atached file. This is a front-end monitoring report for the Uptop V3 Model. The file will be sent directly over email via an automated pipeline — therefore **no JavaScript of any kind is permitted**. All visuals must be built using pure HTML and CSS only.
 
-**Section 2 — Disbursal Data** (disbursed applications only):
-- Disbursal Data — disbursed application count and amount month-on-month
-- V3 Bucket by Credit Check Month / V3 Bucket % — decile distribution for disbursed applications + PSI
-- Risk Segment by Credit Check Month / Risk Segment % — segment distribution for disbursed applications
-- Approval Method by Credit Check Month / Approval Method % — approval method distribution for disbursed applications
-- Bureau Depth Segment by Credit Check Month / Bureau Depth Segment % — Bureau Depth distribution for disbursed applications
+---
 
-## What to produce
+**About the Input File:**
 
-Create an HTML document with these exact sections:
+**Section 1 — Credit Check Data**
+This section covers data at the credit check (application) stage.
 
-### Overall Verdict
-State clearly whether the model is Stable, Watch, or At Risk. Include the latest reporting month visible in the data and a one-line reason. Use a large status badge with color coding (Green/Amber/Red).
+- **First 2 Tables:** Current Status by Credit Check Month / Current Status % by Credit Check Month — shows status of applications (Disbursed, Rejected, Expired, Open, Pre-approved, CA But LPS Not Done, Cancelled, Closed); document MoM trends across all statuses, not just Disbursed.
+- **Next 3 Tables:** V3 Bucket by Credit Check Month / V3 Bucket % by Credit Check Month / PSI Overall — shows population distribution across model deciles; PSI is expected to be slightly elevated as data is post-whitelisting; document MoM PSI trends and highlight anomalies.
+- **Next 2 Tables:** Risk Segment by Credit Check Month / Risk Segment % — distribution across segments created from Uptop V3 + bureau depth model; document MoM trends.
+- **Next 2 Tables:** Approval Method by Credit Check Month / Approval Method % — distribution of approval methods; document MoM trends.
+- **Next 2 Tables:** Bureau Depth Segment by Credit Check Month / Bureau Depth Segment % — distribution of Bureau Depth Model (heuristic measuring bureau profile richness); document MoM trends.
+- **Next 1 Table:** Features Overall — CSI of features MoM; document trends and highlight anomalies.
 
-### KPI Summary
-Display in a card grid:
-- PSI (overall): value + status badge (Green <0.1 / Amber 0.1-0.2 / Red >0.2)
-- Disbursal rate: latest % + trend direction vs prior month
-- Top risk segment share: dominant segment name + %
-- Feature CSI: count of Unstable / Marginal / Stable features
+**Section 2 — Disbursal Data**
+This section covers disbursed-stage data.
 
-### PSI Analysis
-- Overall PSI trend across all available months in a table (month | value | status)
-- Interpretation: within acceptable range (<0.1 stable, 0.1-0.2 moderate shift, >0.2 significant shift)
-- Which decile buckets show the largest population movement
-- Separate PSI trend for credit check vs disbursed population if available
+- **Disbursal Data table** — MoM application count, amount disbursed, and computed average ticket size (amount ÷ count); document trends.
+- **V3 Bucket by Credit Check Month / V3 Bucket %** — decile distribution for disbursed applications; document MoM PSI trends. Also flag any score buckets present in Credit Check data but absent from Disbursal data.
+- **Risk Segment by Credit Check Month / Risk Segment %** — segment distribution for disbursed applications. Flag any segments present in Credit Check but missing entirely from Disbursals.
+- **Approval Method by Credit Check Month / Approval Method %** — approval method distribution for disbursed applications. Compare directly against Credit Check approval method mix to identify conversion gaps.
+- **Bureau Depth Segment by Credit Check Month / Bureau Depth Segment %** — bureau depth distribution for disbursed applications.
+- **Features disbursed table** — CSI of features for the disbursed population MoM. Track separately from Credit Check CSI and compare side-by-side to understand whether the model is selecting a different sub-population post-approval.
 
-### CSI & Variable Stability
-- Table of top 5-10 features by CSI value (Feature | CSI Value | Status)
-- Highlight any features crossing Marginal (>0.1) or Unstable (>0.25) threshold with color badges
-- Note any month-on-month deterioration trend in feature stability
+---
 
-### Score Distribution & Risk Segments
-- Distribution shift across V3 model deciles month-on-month (which buckets are growing or shrinking)
-- Risk segment mix trend: how High / Medium / Low risk shares are moving
-- Approval method mix: any shift in auto-approve vs manual vs decline rates
-- Bureau Depth segment trend: shift in Thin / Medium / Thick file population
-- Use tables with trend arrows
+**Requirements for the Final Report:**
 
-### Disbursal Trends
-- Month-on-month disbursed application count and amount trend (table format)
-- Disbursal rate vs credit check volume trend
-- Risk segment mix of disbursed applications vs credit check population (any adverse selection signal)
-- Decile distribution of disbursed applications vs overall credit check population
+**Section 1 — Model Overview**
+- Model Name: Uptop V3
+- Purpose: Risk Model, used at Bajaj Credit Check step
+- Reporting Month: latest month in the data
+- Brief description of what each section covers
 
-### Early Warning Alerts
-Table format with columns: Metric | Current Value | Threshold | Severity | Action
+---
 
-Alert thresholds to apply:
-- PSI > 0.2 → Critical (Red badge); PSI 0.1-0.2 → Warning (Amber badge)
-- CSI > 0.25 on any feature → Critical; CSI 0.1-0.25 → Warning
-- Disbursal rate drops >5% month-on-month → Warning
-- High-risk segment share increases >3% month-on-month → Warning
+**Section 2 — KPI Summary**
+Display a visual KPI dashboard using styled HTML/CSS cards or tiles. Show current-cycle values with RAG (Red / Amber / Green) status indicators using CSS background colors for:
+- PSI — Credit Check population
+- PSI — Disbursed population
+- Disbursal Rate (Disbursed ÷ Total applications)
+- Rejection Rate
+- CA But LPS Not Done %
+- Average Ticket Size (₹ Lakhs)
+- Feature CSI status summary (count of Unstable / Marginal / Stable features)
 
-If no thresholds are breached, display: "No active alerts — all metrics within acceptable range" in a green success banner.
+RAG thresholds:
+- PSI: Green < 0.1, Amber 0.1–0.2, Red > 0.2
+- Disbursal Rate drop > 3% MoM → Amber; drop > 5% MoM → Red
+- CA But LPS Not Done % > 30% → Red; 15–30% → Amber; < 15% → Green
+- Rejection Rate increase > 3pp MoM → Amber
 
-### Key Findings
-Exactly 4-6 bullet points in a styled list. Each must:
-- Reference actual numbers from the report
-- Identify trend direction (improving / stable / deteriorating)
-- Name specific months where notable changes occurred
-- Flag any anomalies in approval method or bureau depth distribution
+---
 
-### Recommendations
-Exactly 3-5 specific, prioritized actions tied to the metrics. Display as cards with priority badges (High=Red, Medium=Amber, Low=Green). Format each as:
-[Priority Badge] Action — reason based on metric observed
+**Section 3 — Application Pipeline Funnel**
+Using the Current Status tables, compute and display MoM trends for all application statuses as a styled HTML table with MoM change columns and color-coded delta cells (positive change in undesirable statuses like Rejection = red; negative = green). Specifically surface and call out:
 
-## Data Rules
-- Use ONLY actual numbers from the attached Excel file
-- Do NOT invent, estimate, or extrapolate data
-- Where data is missing, show "—" and note it
-- Focus on the latest available month and trend vs prior 2-3 months
-- Do NOT reproduce full tables — extract and interpret key numbers only
+- **Rejection Rate trend** — compute as Rejected ÷ Total; show MoM movement and flag direction
+- **CA But LPS Not Done % trend** — compute as CA But LPS Not Done ÷ Total; highlight prominently with a red alert banner if > 30%
+- **Pre-approved % trend** — compute as Pre-approved ÷ Total; show MoM movement
+- **Expired % trend** — note that Expired drops to 0% in May which may be a recency/data maturity effect; add an explanatory note
+- Write a short interpretation paragraph below the table summarising what the funnel shape tells us about application quality and processing efficiency
 
-## HTML Output Requirements
-- Start your response with <!DOCTYPE html> — the very first characters, no text, no commentary, no reasoning before it
-- The document must end with </html>
-- Inline all CSS inside a <style> tag in <head> — no external stylesheets
-- Use a clean professional layout:
-  * White background (#ffffff)
-  * Dark navy header (#1e3a8a)
-  * Readable sans-serif font (system fonts: -apple-system, Segoe UI, Roboto, Arial)
-  * Clear section separation with subtle borders or background shading
-- Status badge colors:
-  * Green (Stable/OK): #22c55e
-  * Amber (Warning/Watch): #f59e0b
-  * Red (Critical/At Risk): #ef4444
-- Tables should have:
-  * Alternating row shading (#f9fafb for even rows)
-  * Clear column headers with bold text
-  * Borders: 1px solid #e5e7eb
-- The 8 sections map directly to the 8 sections in this prompt — render each as a clearly labelled card or section block with a heading
-- Do not include any JavaScript
-- Do not wrap the HTML in markdown code fences
+---
+
+**Section 4 — Performance Metrics Over Time**
+Use **pure CSS horizontal bar charts** (div-based, width set as inline style percentages) to show trends across monitoring cycles for:
+- PSI per cycle — Credit Check population (color each bar by RAG status)
+- PSI per cycle — Disbursed population (color each bar by RAG status)
+- Disbursal Rate per cycle
+- Rejection Rate per cycle
+- CA But LPS Not Done % per cycle
+
+Each bar must show the numeric value as a visible inline label. No SVG, no Canvas, no JS. Scale bars relative to the maximum value in that series.
+
+---
+
+**Section 5 — Score Distribution & Stability**
+Use a **pure CSS bar chart** (div-based) to show the distribution of model score decile buckets for the current cycle vs. the prior cycle. Each decile bucket is a row with two side-by-side bars (current vs. prior) using different colors. Show percentage values as inline labels.
+
+Additionally: identify and flag in a highlighted callout box any score buckets that appear in the Credit Check population but are **completely absent in the Disbursed population**. Explain what this may mean.
+
+---
+
+**Section 6 — Approval Method Conversion Gap**
+Compare the Approval Method distribution between the Credit Check population and the Disbursed population side by side for the latest month:
+
+- Build a comparison table: Approval Method | CC % | Disbursed % | Gap (pp)
+- Highlight in red any method where a large CC share exists but near-zero disbursals occur
+- Write an interpretation paragraph explaining what this gap means and what action should be taken
+
+---
+
+**Section 7 — Disbursal Volume & Ticket Size Trends**
+Display a styled table showing MoM:
+- Number of applications disbursed
+- Amount disbursed (₹ Cr)
+- **Average ticket size** (computed as Amount ÷ Count, in ₹ Lakhs)
+- Disbursal rate %
+
+Add a short interpretation noting ticket size as a revenue quality signal. Flag any month where both volume AND ticket size decline simultaneously as a double-risk event.
+
+---
+
+**Section 8 — Risk Segment Analysis**
+Show Risk Segment distribution for both Credit Check and Disbursed populations side by side for the latest month. Include a Selection Bias column (Disbursed % minus CC %) with color coding (positive = over-represented in disbursals, negative = under-represented).
+
+Additionally: identify and flag in a red alert box any risk segments that appear in the Credit Check population but are **entirely absent from the Disbursed population** across all months.
+
+---
+
+**Section 9 — Feature Stability — Credit Check vs. Disbursed CSI Comparison**
+Build a side-by-side CSI comparison table for all features showing:
+- Feature Name
+- CSI (Credit Check) — latest month | Status
+- CSI (Disbursed) — latest month | Status
+- Delta (Disbursed CSI minus CC CSI) — red if Disbursed CSI > CC CSI, green if lower
+
+Color-code each row by the worse of the two statuses. Add an interpretation note explaining what it means when the Disbursed population shows higher CSI than the Credit Check population.
+
+CSI thresholds: Stable < 0.1 (green background `#dcfce7`), Marginal 0.1–0.25 (amber background `#fef9c3`), Unstable > 0.25 (red background `#fee2e2`).
+
+---
+
+**Section 10 — Early Warning Alert System**
+A dedicated panel listing all active alerts with severity badges (Critical / Warning / OK) as CSS-styled inline spans. Each alert must include: metric name, current value, threshold breached, recommended action, and reporting month as evaluation timestamp.
+
+Alert triggers:
+- PSI (Credit Check) > 0.2 → Critical; 0.1–0.2 → Warning
+- PSI (Disbursed) > 0.2 → Critical; 0.1–0.2 → Warning
+- Any feature CSI (CC) > 0.25 → Critical; 0.1–0.25 → Warning
+- Any feature CSI (Disbursed) > 0.25 → Critical; 0.1–0.25 → Warning
+- Disbursal Rate drop > 3% MoM → Warning; > 5% → Critical
+- CA But LPS Not Done % > 30% → Critical; 15–30% → Warning
+- Rejection Rate increase > 3pp MoM → Warning
+- Approval method with > 20% CC share but < 5% Disbursal share → Warning
+- Any score bucket or risk segment present in CC but absent in Disbursals → Warning
+
+---
+
+**Section 11 — Summary & Actionable Insights**
+- 5–7 bullet points summarising overall model health covering: PSI stability, feature drift, pipeline funnel health, disbursal conversion gaps, ticket size quality, and segment anomalies
+- Specific, prioritized recommended actions tied to actual computed metric values from the data
+- Priority ranking: High / Medium / Low for each action
+- Next review date (suggest 2 weeks from reporting month given current instability)
+
+---
+
+**HTML Output Requirements:**
+
+- **Start your response with `<!DOCTYPE html>` — the very first characters output, with no text, no commentary, and no reasoning before it**
+- The document must end with `</html>` as the very last characters
+- Do not wrap the HTML in markdown code fences or backticks of any kind
+- Inline all CSS inside a `<style>` tag in `<head>` — no external stylesheets, no CDN links, no Google Fonts
+- **Zero JavaScript** — not a single `<script>` tag or inline event handler anywhere in the document
+
+**Layout & Color Scheme:**
+- White card backgrounds (`#ffffff`) with subtle box-shadow (`0 2px 8px rgba(0,0,0,0.06)`)
+- Dark navy page header (`#1e3a8a`) with white title text
+- Body background: light grey (`#f3f4f6`)
+- Font: system fonts only — `-apple-system, 'Segoe UI', Roboto, Arial, sans-serif`
+- Clear section separation: each section rendered as a card block with a visible heading and subtle border or background shading
+- Fully responsive using CSS flexbox or CSS grid — must render correctly on desktop and tablet
+
+**RAG Badge Colors (CSS inline spans):**
+- Green / Stable / OK: background `#22c55e`, white text
+- Amber / Warning / Marginal: background `#f59e0b`, white text
+- Red / Critical / Unstable / At Risk: background `#ef4444`, white text
+- Badges must be pill-shaped: `border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600`
+
+**Tables:**
+- Alternating row shading: even rows `#f9fafb`, odd rows `#ffffff`
+- Column headers: bold, background `#1e3a8a`, white text
+- All borders: `1px solid #e5e7eb`
+- Numbers: right-aligned; labels: left-aligned
+- MoM delta cells: positive change in undesirable direction (e.g. rising rejection rate) → red text `#ef4444`; positive change in desirable direction → green text `#16a34a`
+
+**CSS Bar Charts:**
+- Each bar is a `<div>` with `height: 20px; border-radius: 4px; display: inline-block`
+- Width set as inline `style="width: XX%"` proportional to the max value in that series
+- Bar color follows RAG status of the value
+- Numeric label displayed as plain text immediately to the right of the bar
+- Wrap each bar row in a `<div style="display:flex; align-items:center; gap:8px; margin:4px 0">`
+
+**KPI Cards:**
+- Render as a flex row that wraps: `display:flex; flex-wrap:wrap; gap:16px`
+- Each card: `min-width:160px; padding:16px; border-radius:8px; border-left:4px solid <RAG color>`
+- Card top line: metric name in small grey text; card main value in large bold text; RAG badge below
+
+**Section Headings:**
+- Dark accent left border: `border-left: 4px solid #1e3a8a; padding-left: 12px`
+- Font size: 18px, font-weight: 700, color: `#1e3a8a`
+- Margin-top: 32px before each section
+
+**Alert Panel (Section 10):**
+- Each alert is a row with: severity badge | metric name | current value | threshold | recommended action
+- Critical rows: left border `4px solid #ef4444`, background `#fff5f5`
+- Warning rows: left border `4px solid #f59e0b`, background `#fffbeb`
+- OK rows: left border `4px solid #22c55e`, background `#f0fdf4`
+
+**All derived metrics** (Average Ticket Size, Rejection Rate %, CA-LPS Not Done %, Conversion Gap, MoM deltas) must be **computed directly from the raw data values in the input file** — do not hardcode any numbers; read and calculate them from the source tables.
+
+**The 11 sections in this prompt map directly to 11 clearly labelled section blocks in the output HTML** — render them in order with consistent heading style and card layout throughout.

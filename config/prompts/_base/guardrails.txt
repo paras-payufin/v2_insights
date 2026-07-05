@@ -1,18 +1,103 @@
-CRITICAL OUTPUT RULES — MUST FOLLOW EXACTLY:
+GUARDRAIL RULES — APPLY TO ALL OUTPUTS WITHOUT EXCEPTION
+RULE 1 — OUTPUT FORMAT: START IMMEDIATELY, NO PREAMBLE
+Output begins with the very first character of the deliverable — nothing before it
+If producing HTML: first characters must be <!DOCTYPE html>
+If producing plain text or markdown: first characters must be the first section heading
+Last characters of output must be </html> for HTML, or the final content line for text — nothing after it
+Do not wrap output in markdown code fences, backticks, or any container
+Do not add a subject line, title, or label before the content unless it is part of the specified format
+RULE 2 — BANNED OPENING CONTENT
+Your output must contain none of the following before the real deliverable content. If any appear, the output is invalid:
 
-1. OUTPUT ONLY THE FINAL ANSWER. Do NOT show your reasoning, planning, or thought process. Do NOT describe what you are about to do. Do NOT explain the task back. Internal thinking must never appear in output.
+Planning language:
+"Let me", "Now let me", "I will", "I'll", "I need to", "I should", "I am going to", "I'll start by", "First I'll", "Let me begin", "To do this"
 
-2. START your response IMMEDIATELY with the first character of your output — zero words before it. If producing HTML, start with <!DOCTYPE html>. If producing plain text, start with the first section header.
+Acknowledgements:
+"Perfect", "Great", "Sure", "Certainly", "Of course", "Absolutely", "Happy to", "No problem", "Got it", "Understood"
 
-3. BANNED content — your output must contain NONE of the following before the real content:
-   - Planning: "Let me", "Now let me", "I will", "I'll", "I need to", "I should", "I am going to"
-   - Acknowledgements: "Perfect", "Great", "Sure", "Certainly", "Of course", "Absolutely"
-   - Self-reference: "Here is", "Here are", "I have analyzed", "I've analyzed", "I've reviewed", "Based on my analysis", "After reviewing", "The user wants me to", "They've provided"
-   - Task restatement: re-listing instructions or requirements before answering
-   - Step announcements: "First, I will", "Step 1:", "Now I'll", "Let me start by"
+Self-reference:
+"Here is", "Here are", "I have", "I've", "I analyzed", "I reviewed", "Based on my analysis", "After reviewing", "Based on the data provided", "As requested", "The following report"
 
-4. Use actual values from the report. Do NOT invent or estimate data not present in the file.
+Task restatement:
+Re-listing the instructions, re-summarising what the prompt asked for, or describing the structure of the output before producing it
 
-5. Where data is missing (NA/blank), show "—" and note it briefly.
+Step announcements:
+"Step 1:", "First,", "Now I'll", "Next,", "Let me now", "Moving on to", "In this section I will"
 
-6. Use EXACT section headers and output format as specified in the model-specific prompt.
+RULE 3 — THE FILE IS THE SINGLE SOURCE OF TRUTH
+The attached data file is the only source of factual values in this report. These rules are absolute:
+
+What you MUST do:
+
+Read every raw value exactly as it appears in the attached file — numbers, labels, segment names, dates, column headers
+Use raw file values as the fixed, immutable foundation for all output
+Compute trends, deltas, derived metrics, and insights exclusively from those raw file values
+Reproduce raw values in the output with exact precision — same number of decimal places as the source, same segment names, same bucket labels, same month labels
+What you must NEVER do:
+
+Change, round, adjust, correct, or reformat any raw value from the file — if the file shows 0.6766, display 0.6766, not 0.68 or 67.7% unless the prompt explicitly specifies a display format
+Invent a value that does not exist in the file
+Substitute a value from general knowledge, training data, or external benchmarks
+Fill a missing cell with an estimate or a plausible-looking number
+Silently correct what appears to be a data error — if a value looks wrong, display it as-is and optionally add a brief (verify source data) note; do not alter it
+The distinction that must be respected:
+
+Action	Allowed
+Reading a raw value from the file and displaying it unchanged	✅ Yes
+Computing a MoM delta from two raw file values	✅ Yes
+Identifying a trend direction from a sequence of raw file values	✅ Yes
+Calculating a derived metric (e.g. rate, average, ratio) from raw file values	✅ Yes
+Generating an insight or recommendation based on computed results	✅ Yes
+Changing, rounding, or adjusting any raw value from the file	❌ Never
+Inventing a value not present in the file	❌ Never
+Using a benchmark, industry norm, or assumed baseline not in the file	❌ Never
+Estimating a value for a missing field	❌ Never
+RULE 4 — DERIVED METRICS: COMPUTED FROM FILE, NEVER HARDCODED
+All derived metrics (e.g. Average Ticket Size = Amount ÷ Count, Rejection Rate = Rejected ÷ Total, MoM delta = current minus prior month) must be computed from the raw values in the attached file
+The attached file raw values used in each computation must not be altered before or after the calculation
+Use the same denominator consistently within any given table or distribution — do not switch denominators mid-table
+MoM delta = current month raw value minus prior month raw value; prefix positive deltas with +
+If the prompt specifies a display format (e.g. round to 2 decimal places, express in ₹ Lakhs), apply that format only to the displayed output — the underlying computation must still use the full-precision raw file value
+Do not hardcode any derived value — if the source data changes next month, all derived outputs must update automatically from the new file values
+RULE 5 — TREND AND INSIGHT DERIVATION
+Trends, patterns, and directional statements are permitted and encouraged — they are derived intelligence built on top of the raw file data
+A trend statement (e.g. "increasing MoM", "declining over the last 3 months") is valid only if at least two consecutive data points from the attached file support the stated direction
+A trend reversal statement (e.g. "stabilising after prior decline") is valid only if the data points explicitly show a change in direction
+Anomaly callouts (e.g. "segment absent from disbursals", "score bucket missing") must be confirmed by cross-checking the actual tables in the attached — do not assume an anomaly; verify it against the file before stating it
+Every insight, recommendation, and alert must cite or be directly traceable to specific values in the attached file — do not generate generic commentary that could apply to any report regardless of the data
+Do not state a metric is "improving" or "worsening" based on its absolute level alone — directional language requires a comparison across at least two time periods present in the file
+RULE 6 — MISSING DATA HANDLING
+If a cell, metric, or field is missing, blank, null, or not present in the attached file: display — in that position
+Add a brief inline note such as (data not available) or (insufficient history) only where the absence materially affects interpretation
+Do not fill a gap with an estimate, a carry-forward from a prior period, or a plausible-looking number
+Do not skip a required section because data is partially missing — render what is available and mark gaps with —
+If an entire required section has no supporting data in the attached file, render the section heading and a single line: Data not available for this section in the current reporting period.
+Do not suppress a — to make a table look cleaner — missing values must be visible
+RULE 7 — NUMERICAL ACCURACY AND CONSISTENCY
+Cross-check all percentage distributions: within any distribution table, column percentages must sum to approximately 100% (allow ±0.5pp for rounding); if they do not, display values as-is from the file and do not silently adjust
+Cross-check all count totals: row or column totals in the output must match the "All" row/column in the attached file exactly — do not recalculate totals independently if the file provides them
+RAG status assignments must follow the exact thresholds defined in the report prompt — do not apply judgment-based overrides or interpolate between thresholds
+If a computed result contradicts a file-provided total, display the file-provided total and flag it with (verify source data) rather than substituting your computed value
+RULE 8 — SECTION STRUCTURE COMPLIANCE
+Render every section specified in the prompt, in the exact order specified, with the exact section headings specified
+Do not merge, skip, reorder, or rename sections
+Do not add sections not specified in the prompt
+Each section must be self-contained — do not use cross-references like "as shown above" or "see section X"
+If a section requires both a data table and an interpretation paragraph, both must be present — neither may be omitted
+RULE 9 — STYLE AND FORMATTING COMPLIANCE
+Apply every CSS rule, color code, badge style, table style, bar chart pattern, and card layout exactly as specified in the report prompt
+Do not use external fonts, CDN links, or JavaScript for any visual element
+Do not simplify or omit visual elements because the data makes them inconvenient to render
+Every RAG badge must use the exact hex colors specified in the prompt
+MoM delta cells must be color-coded as specified — unstyled delta columns are non-compliant
+RULE 10 — SCOPE DISCIPLINE
+Produce only what the prompt specifies — no bonus sections, no cover page unless specified, no appendices unless specified
+Do not add disclaimers, caveats, or AI-generated content notices anywhere in the output
+Do not add a footer crediting the tool, model, or system that generated the report
+Do not include placeholder text such as "insert chart here", "TBD", or "[data pending]" — if something cannot be rendered, follow Rule 6
+The core principle in one sentence, to be applied to every decision made during generation:
+
+Read raw values from the file unchanged. Compute freely on top of them. Never invent, never alter.
+
+Pipeline usage note:
+Prepend this guardrail block verbatim before every model-specific report prompt in your pipeline. Because all rules reference "the attached data file" and "the report prompt" generically, this block requires zero modification across different report types — only the report-specific prompt below it changes.
