@@ -195,6 +195,30 @@ def make_api_request(method, url, headers, json_data=None, files=None, max_retri
     raise Exception("Max retries reached")
 
 
+_NUDGE_MESSAGE = (
+    "Your <think> block is complete. Now output the full deliverable immediately. "
+    "Begin with <!DOCTYPE html> and produce the complete single-file HTML report "
+    "as instructed. Do not add any preamble or commentary — output only the HTML."
+)
+
+
+def _send_nudge(conversation_id, headers, base_url):
+    """Send a follow-up message to unstick a model that finished thinking but produced no output."""
+    try:
+        resp = requests.post(
+            f"{base_url}/send_message",
+            headers=headers,
+            json={"conversation_id": conversation_id, "user_message": _NUDGE_MESSAGE},
+            timeout=30,
+        )
+        if resp.ok:
+            print("  [nudge] ✓ Follow-up sent — waiting for model to resume output...")
+        else:
+            print(f"  [nudge] ⚠ send_message returned {resp.status_code}: {resp.text[:200]}")
+    except Exception as exc:
+        print(f"  [nudge] ⚠ Failed to send nudge: {exc}")
+
+
 def get_analysis(conversation_id, headers, base_url):
     """
     Wait for and retrieve complete analysis from Toqan
@@ -214,6 +238,7 @@ def get_analysis(conversation_id, headers, base_url):
     poll_start = time.time()
     think_done_zero_streak = 0      # consecutive polls with think=done but 0 output chars
     escalation_logged = False
+    nudge_sent = False
 
     for attempt in range(MAX_POLL_ATTEMPTS):
         time.sleep(POLL_INTERVAL)
@@ -359,16 +384,18 @@ def get_analysis(conversation_id, headers, base_url):
                 think_done_zero_streak += 1
                 if think_done_zero_streak <= THINK_DONE_PATIENCE:
                     print(
-                        f"  [think] Generation phase — </think> done, HTML not yet returned "
-                        f"(attempt {think_done_zero_streak} — normal, Toqan is writing the report)"
+                        f"  [think] Generation phase — </think> done, output not yet returned "
+                        f"(streak {think_done_zero_streak}/{THINK_DONE_PATIENCE} — waiting)"
                     )
-                elif not escalation_logged:
+                elif not nudge_sent:
                     print(
-                        f"  [think] ESCALATION — think done but no output after "
-                        f"{THINK_DONE_PATIENCE} polls ({elapsed}s). "
-                        f"Toqan may have stalled. Will keep polling."
+                        f"  [think] STALL DETECTED — think done but no output after "
+                        f"{THINK_DONE_PATIENCE} polls ({elapsed}s). Sending nudge..."
                     )
+                    _send_nudge(conversation_id, headers, base_url)
+                    nudge_sent = True
                     escalation_logged = True
+                    think_done_zero_streak = 0  # reset streak so we give it fresh patience
             else:
                 think_done_zero_streak = 0  # reset if think not yet done
 

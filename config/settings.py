@@ -44,8 +44,8 @@ FILE_NAME_PATTERN = None  # Set regex pattern or None
 # ============================================================================
 # ANALYSIS CONFIGURATION
 # ============================================================================
-MIN_ANALYSIS_LENGTH = 5000          # plain-text reports — reject short stubs (was 1000)
-MIN_HTML_ANALYSIS_LENGTH = 30000    # HTML reports — Toqan generates 30-150 KB
-MAX_POLL_ATTEMPTS = 120             # 120 × 10s = 1200s (~20 min) headroom
-POLL_INTERVAL = 10
+MIN_ANALYSIS_LENGTH = 1500          # lowered from 5000 — plain text fallback
+MIN_HTML_ANALYSIS_LENGTH = 5000     # lowered from 30000 — closing tag is the real gate
+MAX_POLL_ATTEMPTS = 120             # keep
+POLL_INTERVAL = 10                  # keep
 THINK_DONE_PATIENCE = 20            # consecutive think=done + 0 chars polls before sending nudge

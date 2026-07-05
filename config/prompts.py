@@ -18,8 +18,9 @@ def get_analysis_prompt(club, model_type, model_specific, monitoring_approach):
     # a role definition), return it directly. Assembling it with the stub files
     # (guardrails, club context, model_type, monitoring) adds noise and causes
     # the model to echo the instruction fragments rather than produce analysis.
-    if model_specific_p.lower().startswith(("you are", "role:", "**role:**")):
-        return model_specific_p
+    if model_specific_p.lower().lstrip('*# \n').startswith(("you are", "role:")):
+        guardrails = _load_prompt_file(PROMPTS_DIR / "_base" / "guardrails.txt")
+        return f"{guardrails}\n\n{model_specific_p}"
 
     # Legacy assembly path — used for models that rely on the stub files.
     guardrails = _load_prompt_file(PROMPTS_DIR / "_base" / "guardrails.txt")
@@ -131,4 +132,7 @@ def get_prompt_by_model_name(model_name):
     if name not in MODEL_REGISTRY:
         raise ValueError(f"Model {model_name} not found")
     c = MODEL_REGISTRY[name]
-    return get_analysis_prompt(c["club"], c["type"], c["model_specific"], c["monitoring"])
+    prompt = get_analysis_prompt(c["club"], c["type"], c["model_specific"], c["monitoring"])
+    print(f"  [prompt] {model_name}: {len(prompt)} chars | "
+          f"first 80: {prompt[:80]!r}")
+    return prompt
