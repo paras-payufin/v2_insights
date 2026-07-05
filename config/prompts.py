@@ -18,7 +18,7 @@ def get_analysis_prompt(club, model_type, model_specific, monitoring_approach):
     # a role definition), return it directly. Assembling it with the stub files
     # (guardrails, club context, model_type, monitoring) adds noise and causes
     # the model to echo the instruction fragments rather than produce analysis.
-    if model_specific_p.lower().startswith(("you are", "role:")):
+    if model_specific_p.lower().startswith(("you are", "role:", "**role:**")):
         return model_specific_p
 
     # Legacy assembly path — used for models that rely on the stub files.
