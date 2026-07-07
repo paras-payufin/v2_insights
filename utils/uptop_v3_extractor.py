@@ -439,19 +439,17 @@ def extract_from_html(html, source_label=""):
 # Prompt-injection helper — exact category labels for this file
 # ---------------------------------------------------------------------------
 
-def build_label_whitelist(data):
+def get_label_categories(data):
     """
-    Build a plain-text block listing the exact category label strings found
-    in this specific extracted file (score buckets, risk segments, approval
-    methods, feature names, application statuses).
+    Return the exact category labels found in this file, grouped by category:
+    {category_name: [label, label, ...]}.
 
-    This is injected into the LLM prompt (replacing the {{VALID_LABELS}}
-    marker in the uptop_v3 prompt) so the model cannot substitute a
-    generic industry-standard scheme (CIBIL score bands, VL/L/M/H/VH risk
-    tiers, manual/auto/rejected approval flags) for this model's actual,
-    non-standard labels — a failure mode observed in production where the
-    LLM fell back on familiar "textbook" categories instead of reading the
-    file's real keys.
+    Single source of truth for both build_label_whitelist() (prompt text) and
+    extract_grounding_facts() (post-hoc hallucination check) — keeping the two
+    in sync and avoiding fragile re-parsing of formatted prompt text (score
+    bucket labels like "(0.0, 0.201]" contain commas, which broke a naive
+    comma-split parser during testing — this is why both consumers read from
+    this structured dict instead).
     """
 
     def _labels(section, field):
@@ -467,25 +465,86 @@ def build_label_whitelist(data):
                 seen.append(lbl)
         return seen
 
-    v3_buckets = _union("v3_score_buckets")
-    risk_segments = _union("risk_segments")
-    approval_methods = _union("approval_methods")
-    application_statuses = _labels("credit_check", "application_status")
-
     feature_names = []
     for section in ("credit_check", "disbursed"):
         for feat in data.get(section, {}).get("feature_csi", {}).keys():
             if feat not in feature_names:
                 feature_names.append(feat)
 
-    lines = []
-    lines.append(f"- Application status categories: {', '.join(application_statuses)}")
-    lines.append(f"- V3 score bucket labels: {', '.join(v3_buckets)}")
-    lines.append(f"- Risk segment labels: {', '.join(risk_segments)}")
-    lines.append(f"- Approval method labels: {', '.join(approval_methods)}")
-    lines.append(f"- Feature names (for CSI table): {', '.join(feature_names)}")
+    return {
+        "Application status categories": _labels("credit_check", "application_status"),
+        "V3 score bucket labels": _union("v3_score_buckets"),
+        "Risk segment labels": _union("risk_segments"),
+        "Approval method labels": _union("approval_methods"),
+        "Feature names (for CSI table)": feature_names,
+    }
 
-    return "\n".join(lines)
+
+def build_label_whitelist(data):
+    """
+    Build a plain-text block listing the exact category label strings found
+    in this specific extracted file (score buckets, risk segments, approval
+    methods, feature names, application statuses).
+
+    This is injected into the LLM prompt (replacing the {{VALID_LABELS}}
+    marker in the uptop_v3 prompt) so the model cannot substitute a
+    generic industry-standard scheme (CIBIL score bands, VL/L/M/H/VH risk
+    tiers, manual/auto/rejected approval flags) for this model's actual,
+    non-standard labels — a failure mode observed in production where the
+    LLM fell back on familiar "textbook" categories instead of reading the
+    file's real keys.
+    """
+    categories = get_label_categories(data)
+    return "\n".join(f"- {name}: {', '.join(labels)}" for name, labels in categories.items())
+
+
+def extract_grounding_facts(data):
+    """
+    Pull a small set of exact, high-signal values out of the extracted data —
+    used purely for post-hoc diagnostic logging (see log_grounding_diagnostics
+    in uptop_v3.py). These are values we KNOW are correct (they came straight
+    from the source HTML), so if they don't show up verbatim in Toqan's
+    generated report, that's strong evidence the model didn't actually read
+    the attached JSON for that section and fabricated numbers instead.
+
+    Kept deliberately small and JSON-plain (str/None only) so it is safe to
+    push through Airflow XCom without extra serialization handling.
+    """
+    meta = data.get("_meta", {})
+    latest = meta.get("latest_month")
+    prior = meta.get("prior_month")
+    months = [m for m in (latest, prior) if m]
+
+    def _fmt(v):
+        if v is None:
+            return None
+        if isinstance(v, float) and v == int(v):
+            return str(int(v))
+        return str(v)
+
+    facts = {"latest_month": latest, "prior_month": prior}
+
+    facts["psi_credit_check"] = {
+        m: _fmt(data.get("credit_check", {}).get("psi", {}).get(m)) for m in months
+    }
+    facts["psi_disbursed"] = {
+        m: _fmt(data.get("disbursed", {}).get("psi", {}).get(m)) for m in months
+    }
+
+    funnel_counts = data.get("credit_check", {}).get("application_status", {}).get("counts", {})
+    facts["funnel_counts_latest"] = {
+        status: _fmt(row.get(latest))
+        for status, row in funnel_counts.items() if status != "All"
+    }
+
+    # Flat list of every real category label in this file (score buckets,
+    # risk segments, approval methods, feature names, application statuses)
+    # — used by log_grounding_diagnostics() to check how many of the file's
+    # actual labels show up verbatim in Toqan's generated report.
+    categories = get_label_categories(data)
+    facts["label_terms"] = [term for labels in categories.values() for term in labels]
+
+    return facts
 
 
 # ---------------------------------------------------------------------------

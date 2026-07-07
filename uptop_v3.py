@@ -29,7 +29,7 @@ from config.prompts import get_prompt_by_model_name
 from email_service.template import create_html_email, EMAIL_CONFIG
 from email_service.sender import send_email
 from utils.helpers import get_analysis, make_api_request, remove_emojis
-from utils.uptop_v3_extractor import extract_from_html, build_label_whitelist
+from utils.uptop_v3_extractor import extract_from_html, build_label_whitelist, extract_grounding_facts
 from utils.utils import TOQAN_API_KEY, TOQAN_BASE_URL
 from email_service.error_notifier import dag_failure_callback, notify_error
 
@@ -93,12 +93,16 @@ def extract_html_to_json(file_name, html_buffer):
         html_buffer: BytesIO buffer holding the downloaded HTML bytes.
 
     Returns:
-        tuple: (json_file_name, json_buffer, label_whitelist)
+        tuple: (json_file_name, json_buffer, label_whitelist, grounding_facts)
             label_whitelist is a plain-text block of the exact category
             labels found in this file (score buckets, risk segments,
             approval methods, feature names) — injected into the LLM
             prompt so it cannot substitute generic industry-standard
             categories for this model's actual, non-standard labels.
+            grounding_facts is a small dict of known-correct values (PSI,
+            funnel counts) used later by log_grounding_diagnostics() to
+            check whether Toqan's generated report actually reflects this
+            file's real numbers, or drifted/hallucinated away from them.
     """
     print("\n[extract_html_to_json] START")
     html_buffer.seek(0)
@@ -106,6 +110,7 @@ def extract_html_to_json(file_name, html_buffer):
 
     data = extract_from_html(html_content, source_label=file_name)
     label_whitelist = build_label_whitelist(data)
+    grounding_facts = extract_grounding_facts(data)
 
     # Compact (no indentation) — Toqan reads this as raw data, not for human
     # display, so pretty-printing only adds dead-weight tokens to the payload
@@ -117,15 +122,22 @@ def extract_html_to_json(file_name, html_buffer):
     print(f"  [extract_html_to_json] source: {file_name!r} ({html_buffer.getbuffer().nbytes:,} bytes)")
     print(f"  [extract_html_to_json] output: {json_file_name!r} ({len(json_bytes):,} bytes)")
     print(f"  [extract_html_to_json] latest_month: {data['_meta'].get('latest_month')!r}")
-    print(f"  [extract_html_to_json] label_whitelist:\n{label_whitelist}")
+    print(f"  [extract_html_to_json] label_whitelist (built from this file's own keys):\n{label_whitelist}")
+    print(f"  [extract_html_to_json] grounding_facts (for post-hoc hallucination check later): {grounding_facts}")
     print(f"[extract_html_to_json] END")
-    return json_file_name, json_buffer, label_whitelist
+    return json_file_name, json_buffer, label_whitelist, grounding_facts
 
 
 def upload_to_toqan(file_name, file_buffer):
     """Upload file to Toqan API; returns file_id."""
     print("\n☁️  Uploading to Toqan...")
     time.sleep(3)
+
+    file_buffer.seek(0, 2)  # seek to end to measure size
+    uploaded_bytes = file_buffer.tell()
+    file_buffer.seek(0)
+    print(f"  [upload_to_toqan] file: {file_name!r} ({uploaded_bytes:,} bytes) "
+          f"— this is the ONLY payload Toqan receives; it never sees the original HTML.")
 
     headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
     files_payload = {"file": (file_name, file_buffer, "application/octet-stream")}
@@ -134,8 +146,13 @@ def upload_to_toqan(file_name, file_buffer):
         "PUT", f"{TOQAN_BASE_URL}/upload_file", headers, files=files_payload
     )
 
-    file_id = upload_response.json()["file_id"]
-    print(f"✓ Upload complete (ID: {file_id})")
+    resp_json = upload_response.json()
+    file_id = resp_json.get("file_id")
+    if not file_id:
+        print(f"  [upload_to_toqan] ⚠ WARNING — no file_id in upload response: {resp_json!r}")
+        raise RuntimeError(f"Toqan /upload_file did not return a file_id. Response: {resp_json!r}")
+
+    print(f"✓ Upload complete (ID: {file_id}, {uploaded_bytes:,} bytes confirmed uploaded)")
     return file_id
 
 
@@ -155,6 +172,27 @@ def create_analysis_conversation(file_id, label_whitelist=None):
 
     print(f"  [create_analysis_conversation] prompt length : {len(prompt)} chars")
     print(f"  [create_analysis_conversation] prompt preview: {prompt[:100]!r}")
+
+    # [LABEL INJECTION CHECK] Confirm the {{VALID_LABELS}} marker was actually
+    # replaced in the FINAL prompt text being sent — not just that we built a
+    # whitelist earlier. If wiring breaks upstream (e.g. label_whitelist is
+    # None/empty, or the marker string in the .txt file was edited/removed),
+    # this is the log line that will catch it before blaming Toqan.
+    if "{{VALID_LABELS}}" in prompt:
+        print("  [LABEL INJECTION CHECK] ⚠ WARNING — literal '{{VALID_LABELS}}' marker is "
+              "STILL PRESENT in the final prompt sent to Toqan. The whitelist was NOT "
+              "injected (label_whitelist may be empty/None, or the marker in "
+              "config/prompts/model_specific/uptop_v3.txt was changed). Toqan will see "
+              "the raw '{{VALID_LABELS}}' text instead of real category labels.")
+    elif label_whitelist and label_whitelist.strip() and label_whitelist.strip() in prompt:
+        print("  [LABEL INJECTION CHECK] ✓ Label whitelist successfully injected into the "
+              "prompt actually sent to Toqan. Labels injected:")
+        for line in label_whitelist.strip().splitlines():
+            print(f"    {line}")
+    else:
+        print("  [LABEL INJECTION CHECK] ⚠ WARNING — could not confirm label whitelist in "
+              f"final prompt. label_whitelist={label_whitelist!r}")
+
     print(f"  [attach] file_id being sent: {file_id!r}")
 
     conversation_data = {
@@ -211,6 +249,104 @@ def _is_html_output(text):
     return text.strip()[:20].lower().lstrip().startswith(("<!doctype html", "<html"))
 
 
+# Generic industry-standard patterns that do NOT exist anywhere in this
+# model's actual data — if these show up in the generated report, it's a
+# strong signal the model fell back on a "textbook" credit-risk template
+# instead of reading the attached JSON (this exact failure mode is what
+# triggered the original hallucination audit).
+_HALLUCINATION_RED_FLAGS = [
+    "300-350", "350-400", "400-450", "450-500", "500-550",
+    "550-600", "600-650", "650-700", "700-750", "750-850",
+    "cibil score band", "cibil band", "cibil range",
+    "very low", "very high",
+    "manual approval", "auto approval", "manually approved", "auto-approved",
+    "manual/auto",
+]
+
+
+def log_grounding_diagnostics(grounding_facts, analysis):
+    """
+    Post-hoc, NON-BLOCKING diagnostic log — compares Toqan's generated report
+    text against known-correct source values (grounding_facts, produced by
+    utils.uptop_v3_extractor.extract_grounding_facts) and prints a clear
+    pass/fail breakdown to stdout (captured in Airflow task logs). This does
+    not fail the pipeline or block the email — it only makes "why did this
+    hallucinate" visible without having to manually diff the report against
+    extracted_uptop_v3.json after the fact.
+    """
+    print("\n" + "=" * 80)
+    print("[GROUNDING CHECK] Comparing Toqan's generated report against source-of-truth data")
+    print("=" * 80)
+
+    text = analysis or ""
+    text_lower = text.lower()
+    grounding_facts = grounding_facts or {}
+
+    # 1. PSI values — do the exact source numbers appear verbatim anywhere?
+    print("\n[GROUNDING CHECK] PSI values expected verbatim in the report:")
+    psi_missing = 0
+    for section_key, label in (("psi_credit_check", "Credit Check"), ("psi_disbursed", "Disbursed")):
+        for month, value in (grounding_facts.get(section_key) or {}).items():
+            if value is None:
+                continue
+            found = value in text
+            print(f"  [{'FOUND' if found else 'MISSING'}] {label} PSI {month} = {value}")
+            if not found:
+                psi_missing += 1
+    if psi_missing:
+        print(f"  -> WARNING: {psi_missing} PSI value(s) not found verbatim in the report. "
+              f"Likely fabricated PSI numbers — check the PSI & Score Distribution section.")
+
+    # 2. Funnel counts for the latest month — spot-check raw counts.
+    latest_month = grounding_facts.get("latest_month")
+    print(f"\n[GROUNDING CHECK] Application funnel counts expected for {latest_month!r}:")
+    funnel_missing = []
+    for status, value in (grounding_facts.get("funnel_counts_latest") or {}).items():
+        if value is None:
+            continue
+        found = value in text
+        print(f"  [{'FOUND' if found else 'MISSING'}] {status} = {value}")
+        if not found:
+            funnel_missing.append((status, value))
+    if funnel_missing:
+        print(f"  -> WARNING: {len(funnel_missing)} funnel count(s) not found verbatim: {funnel_missing}")
+
+    # 3. Real category labels from THIS file — how many actually show up?
+    #    (label_terms comes structured from get_label_categories() — not
+    #    re-parsed from formatted text — so labels containing commas, like
+    #    score-bucket intervals "(0.0, 0.201]", aren't accidentally split.)
+    print("\n[GROUNDING CHECK] Real category labels (from this file) found in the report:")
+    whitelist_terms = grounding_facts.get("label_terms") or []
+    found_labels = [t for t in whitelist_terms if t in text]
+    missing_labels = [t for t in whitelist_terms if t not in text]
+    total = len(whitelist_terms) or 1
+    print(f"  {len(found_labels)}/{len(whitelist_terms)} real labels found verbatim "
+          f"({100 * len(found_labels) / total:.0f}%).")
+    if missing_labels:
+        print(f"  -> MISSING real labels (model may never have read the file for this "
+              f"section): {missing_labels}")
+
+    # 4. Generic hallucination fingerprints — patterns that don't exist in the
+    #    source data but are extremely common in generic credit-risk templates.
+    print("\n[GROUNDING CHECK] Scanning for generic hallucination fingerprints:")
+    hits = [pat for pat in _HALLUCINATION_RED_FLAGS if pat in text_lower]
+    if hits:
+        print(f"  -> RED FLAG: found generic/templated terms that do NOT exist in the "
+              f"source file: {hits}. This strongly suggests the model substituted a "
+              f"generic industry template instead of reading the attached JSON for "
+              f"that section (the exact bug this check exists to catch).")
+    else:
+        print("  No known generic hallucination fingerprints detected.")
+
+    # 5. Overall verdict — quick eyeball summary line for scanning Airflow logs.
+    total_checks = psi_missing + len(funnel_missing) + len(missing_labels) + len(hits)
+    print("\n[GROUNDING CHECK] VERDICT: " +
+          ("✓ No grounding issues detected." if total_checks == 0
+           else f"⚠ {total_checks} grounding issue(s) detected — see warnings above. "
+                f"Report may contain hallucinated content."))
+    print("=" * 80 + "\n")
+
+
 def send_report_email(file_name, analysis, model_name=MODEL_NAME):
     """Generate and send email report."""
     print("\n📧 Creating and sending email...")
@@ -258,10 +394,11 @@ def main():
     try:
         s3_key, file_name, _file_size = find_latest_file()
         buffer = download_file(s3_key)
-        json_file_name, json_buffer, label_whitelist = extract_html_to_json(file_name, buffer)
+        json_file_name, json_buffer, label_whitelist, grounding_facts = extract_html_to_json(file_name, buffer)
         file_id = upload_to_toqan(json_file_name, json_buffer)
         conversation_id, request_id = create_analysis_conversation(file_id, label_whitelist)
         analysis = wait_for_analysis(conversation_id, request_id)
+        log_grounding_diagnostics(grounding_facts, analysis)
         send_report_email(file_name, analysis, MODEL_NAME)
 
         print("\n" + "=" * 80)
@@ -310,7 +447,7 @@ if _AIRFLOW_AVAILABLE:
         json_buffer = None
         try:
             buffer = download_file(s3_key)
-            json_file_name, json_buffer, label_whitelist = extract_html_to_json(file_name, buffer)
+            json_file_name, json_buffer, label_whitelist, grounding_facts = extract_html_to_json(file_name, buffer)
             file_id = upload_to_toqan(json_file_name, json_buffer)
         finally:
             if buffer:
@@ -319,6 +456,7 @@ if _AIRFLOW_AVAILABLE:
                 json_buffer.close()
         ti.xcom_push(key="file_id", value=file_id)
         ti.xcom_push(key="label_whitelist", value=label_whitelist)
+        ti.xcom_push(key="grounding_facts", value=grounding_facts)
 
     def _task_start_analysis(**context):
         ti      = context["ti"]
@@ -329,11 +467,13 @@ if _AIRFLOW_AVAILABLE:
         ti.xcom_push(key="request_id", value=request_id)
 
     def _task_fetch_and_email(**context):
-        ti          = context["ti"]
-        conv_id     = ti.xcom_pull(task_ids="start_analysis", key="conversation_id")
-        request_id  = ti.xcom_pull(task_ids="start_analysis", key="request_id")
-        file_name   = ti.xcom_pull(task_ids="find_latest",    key="file_name")
-        analysis    = wait_for_analysis(conv_id, request_id)
+        ti              = context["ti"]
+        conv_id         = ti.xcom_pull(task_ids="start_analysis", key="conversation_id")
+        request_id      = ti.xcom_pull(task_ids="start_analysis", key="request_id")
+        file_name       = ti.xcom_pull(task_ids="find_latest",    key="file_name")
+        grounding_facts = ti.xcom_pull(task_ids="upload_file",    key="grounding_facts")
+        analysis        = wait_for_analysis(conv_id, request_id)
+        log_grounding_diagnostics(grounding_facts, analysis)
         send_report_email(file_name, analysis, MODEL_NAME)
 
     # ── DAG ───────────────────────────────────────────────────────────────
