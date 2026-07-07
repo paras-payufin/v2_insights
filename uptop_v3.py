@@ -2,6 +2,24 @@
 """
 Toqan UpTop V3 monitoring insights — Apache Airflow DAG + pipeline helpers.
 
+ARCHITECTURE NOTE — why this file does NOT ask an LLM to read the data file
+anymore: two rounds of prompt-level fixes (anti-fabrication rules, exact
+category-label whitelisting) drove label/category hallucination to zero, but
+had no measurable effect on numeric hallucination — every PSI value, CSI
+value, count, and rate in generated reports was still invented, just now
+dressed in the correct real-world vocabulary. Asking a single LLM call to
+both verbatim-retrieve 100+ precise numbers from a dense JSON file AND
+compose a long, richly formatted report proved fundamentally unreliable.
+
+The fix: every KPI, RAG status, table row, and alert is now computed
+deterministically in Python (utils.uptop_v3_metrics.compute_report_metrics)
+directly from the extractor's output. Toqan is only ever asked to write five
+short narrative paragraphs around numbers it is handed already-computed
+(generate_narrative) — it never looks anything up, so it can no longer
+invent a PSI value, a feature name, or a count. The final HTML is rendered
+in Python (utils.uptop_v3_html_renderer.render_html_report), with the
+narrative slotted in as prose only.
+
 Deploy: put this file (or repo) on Airflow's DAG path / PYTHONPATH. Ensure
 `.env` is visible to `utils.utils` (repo root as cwd or symlink .env).
 
@@ -12,10 +30,10 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import json
+import re
 import time
 from datetime import datetime, timedelta
 from io import BytesIO
-from pathlib import Path
 
 import boto3
 
@@ -25,15 +43,22 @@ from config.settings import (
     S3_FOLDER_BAJAJ,
     SUPPORTED_EXTENSIONS,
 )
-from config.prompts import get_prompt_by_model_name
-from email_service.template import create_html_email, EMAIL_CONFIG
+from config.prompts import get_narrative_prompt
+from email_service.template import EMAIL_CONFIG
 from email_service.sender import send_email
-from utils.helpers import get_analysis, make_api_request, remove_emojis
-from utils.uptop_v3_extractor import extract_from_html, build_label_whitelist, extract_grounding_facts
+from utils.helpers import get_analysis, make_api_request
+from utils.uptop_v3_extractor import extract_from_html
+from utils.uptop_v3_metrics import compute_report_metrics
+from utils.uptop_v3_html_renderer import render_html_report
 from utils.utils import TOQAN_API_KEY, TOQAN_BASE_URL
 from email_service.error_notifier import dag_failure_callback, notify_error
 
 MODEL_NAME = "uptop_v3"
+
+NARRATIVE_KEYS = (
+    "health_summary", "funnel_commentary", "psi_score_commentary",
+    "csi_commentary", "disbursal_commentary",
+)
 
 
 # ============================================================================
@@ -80,180 +105,173 @@ def download_file(s3_key):
     return buffer
 
 
-def extract_html_to_json(file_name, html_buffer):
+def extract_and_compute_metrics(file_name, html_buffer):
     """
-    Convert the downloaded UpTop V3 HTML report into structured raw-data JSON.
-
-    Toqan analyzes this JSON instead of the raw HTML for this model — the
-    extractor pulls every table into plain key/value data with no computed
-    metrics, so the AI still does all calculation itself.
-
-    Args:
-        file_name:   Original HTML file name (used for date detection + naming).
-        html_buffer: BytesIO buffer holding the downloaded HTML bytes.
+    Parse the downloaded UpTop V3 HTML report and compute every metric the
+    report needs, entirely in Python. No LLM is involved anywhere in this
+    function — `metrics` is exactly as trustworthy as the source HTML table
+    data itself.
 
     Returns:
-        tuple: (json_file_name, json_buffer, label_whitelist, grounding_facts)
-            label_whitelist is a plain-text block of the exact category
-            labels found in this file (score buckets, risk segments,
-            approval methods, feature names) — injected into the LLM
-            prompt so it cannot substitute generic industry-standard
-            categories for this model's actual, non-standard labels.
-            grounding_facts is a small dict of known-correct values (PSI,
-            funnel counts) used later by log_grounding_diagnostics() to
-            check whether Toqan's generated report actually reflects this
-            file's real numbers, or drifted/hallucinated away from them.
+        dict: metrics (see utils.uptop_v3_metrics.compute_report_metrics),
+              plus a top-level "_file_name" key for downstream email naming.
     """
-    print("\n[extract_html_to_json] START")
+    print("\n[extract_and_compute_metrics] START")
     html_buffer.seek(0)
     html_content = html_buffer.read().decode("utf-8")
 
     data = extract_from_html(html_content, source_label=file_name)
-    label_whitelist = build_label_whitelist(data)
-    grounding_facts = extract_grounding_facts(data)
+    metrics = compute_report_metrics(data)
+    metrics["_file_name"] = file_name
 
-    # Compact (no indentation) — Toqan reads this as raw data, not for human
-    # display, so pretty-printing only adds dead-weight tokens to the payload
-    # the model has to ingest before it can even start writing the report.
-    json_bytes = json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    json_file_name = f"{Path(file_name).stem}.json"
-    json_buffer = BytesIO(json_bytes)
-
-    print(f"  [extract_html_to_json] source: {file_name!r} ({html_buffer.getbuffer().nbytes:,} bytes)")
-    print(f"  [extract_html_to_json] output: {json_file_name!r} ({len(json_bytes):,} bytes)")
-    print(f"  [extract_html_to_json] latest_month: {data['_meta'].get('latest_month')!r}")
-    print(f"  [extract_html_to_json] label_whitelist (built from this file's own keys):\n{label_whitelist}")
-    print(f"  [extract_html_to_json] grounding_facts (for post-hoc hallucination check later): {grounding_facts}")
-    print(f"[extract_html_to_json] END")
-    return json_file_name, json_buffer, label_whitelist, grounding_facts
+    print(f"  [extract_and_compute_metrics] source: {file_name!r} ({html_buffer.getbuffer().nbytes:,} bytes)")
+    print(f"  [extract_and_compute_metrics] latest_month: {metrics['meta'].get('latest_month')!r}")
+    print(f"  [extract_and_compute_metrics] overall_status: {metrics['overall_rag']!r}")
+    print(f"  [extract_and_compute_metrics] alerts computed: {len(metrics['alerts'])}")
+    for alert in metrics["alerts"]:
+        print(f"    - [{alert['status']}] {alert['metric']} = {alert['current_value']} (threshold {alert['threshold']})")
+    print("[extract_and_compute_metrics] END")
+    return metrics
 
 
-def upload_to_toqan(file_name, file_buffer):
-    """Upload file to Toqan API; returns file_id."""
-    print("\n☁️  Uploading to Toqan...")
-    time.sleep(3)
-
-    file_buffer.seek(0, 2)  # seek to end to measure size
-    uploaded_bytes = file_buffer.tell()
-    file_buffer.seek(0)
-    print(f"  [upload_to_toqan] file: {file_name!r} ({uploaded_bytes:,} bytes) "
-          f"— this is the ONLY payload Toqan receives; it never sees the original HTML.")
-
-    headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
-    files_payload = {"file": (file_name, file_buffer, "application/octet-stream")}
-
-    upload_response = make_api_request(
-        "PUT", f"{TOQAN_BASE_URL}/upload_file", headers, files=files_payload
-    )
-
-    resp_json = upload_response.json()
-    file_id = resp_json.get("file_id")
-    if not file_id:
-        print(f"  [upload_to_toqan] ⚠ WARNING — no file_id in upload response: {resp_json!r}")
-        raise RuntimeError(f"Toqan /upload_file did not return a file_id. Response: {resp_json!r}")
-
-    print(f"✓ Upload complete (ID: {file_id}, {uploaded_bytes:,} bytes confirmed uploaded)")
-    return file_id
-
-
-def create_analysis_conversation(file_id, label_whitelist=None):
-    """Create analysis conversation with Toqan; returns (conversation_id, request_id).
-
-    label_whitelist: plain-text block of the exact category labels found in
-    this run's file (see build_label_whitelist) — injected into the prompt's
-    {{VALID_LABELS}} marker so the model can't fall back on generic
-    industry-standard categories instead of this file's real labels.
+def build_narrative_facts(metrics):
     """
-    print(f"\n[create_analysis_conversation] START — model={MODEL_NAME!r}")
-    time.sleep(5)
+    Build the compact facts payload handed to the LLM for narrative-only
+    generation — a small, curated subset of `metrics` with the flags the
+    model needs already computed (absent_in_disbursed, conversion_alert,
+    etc.), so it never has to infer or look anything up, only narrate it.
+    """
+    kpi = metrics["kpi"]
+    latest = metrics["meta"]["latest_month"]
 
-    headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
-    prompt = get_prompt_by_model_name(MODEL_NAME, prompt_vars={"VALID_LABELS": label_whitelist})
+    top_risk_gaps = sorted(
+        [r for r in metrics["risk_segments"] if r["gap_pp"] is not None],
+        key=lambda r: abs(r["gap_pp"]), reverse=True,
+    )[:3]
 
-    print(f"  [create_analysis_conversation] prompt length : {len(prompt)} chars")
-    print(f"  [create_analysis_conversation] prompt preview: {prompt[:100]!r}")
-
-    # [LABEL INJECTION CHECK] Confirm the {{VALID_LABELS}} marker was actually
-    # replaced in the FINAL prompt text being sent — not just that we built a
-    # whitelist earlier. If wiring breaks upstream (e.g. label_whitelist is
-    # None/empty, or the marker string in the .txt file was edited/removed),
-    # this is the log line that will catch it before blaming Toqan.
-    if "{{VALID_LABELS}}" in prompt:
-        print("  [LABEL INJECTION CHECK] ⚠ WARNING — literal '{{VALID_LABELS}}' marker is "
-              "STILL PRESENT in the final prompt sent to Toqan. The whitelist was NOT "
-              "injected (label_whitelist may be empty/None, or the marker in "
-              "config/prompts/model_specific/uptop_v3.txt was changed). Toqan will see "
-              "the raw '{{VALID_LABELS}}' text instead of real category labels.")
-    elif label_whitelist and label_whitelist.strip() and label_whitelist.strip() in prompt:
-        print("  [LABEL INJECTION CHECK] ✓ Label whitelist successfully injected into the "
-              "prompt actually sent to Toqan. Labels injected:")
-        for line in label_whitelist.strip().splitlines():
-            print(f"    {line}")
-    else:
-        print("  [LABEL INJECTION CHECK] ⚠ WARNING — could not confirm label whitelist in "
-              f"final prompt. label_whitelist={label_whitelist!r}")
-
-    print(f"  [attach] file_id being sent: {file_id!r}")
-
-    conversation_data = {
-        "user_message": prompt,
-        "private_user_files": [{"id": file_id}],
+    return {
+        "latest_month": latest,
+        "overall_status": metrics["overall_rag"],
+        "kpi_summary": {
+            "psi_credit_check": kpi["psi_credit_check"]["value"],
+            "psi_disbursed": kpi["psi_disbursed"]["value"],
+            "psi_disbursed_status": kpi["psi_disbursed"]["rag"],
+            "disbursal_rate_pct": kpi["disbursal_rate"]["value"],
+            "disbursal_rate_mom_pp": kpi["disbursal_rate"]["mom_delta_pp"],
+            "rejection_rate_pct": kpi["rejection_rate"]["value"],
+            "ca_lps_pct": kpi["ca_lps_pct"]["value"],
+            "ca_lps_status": kpi["ca_lps_pct"]["rag"],
+            "avg_ticket_size_lakhs": kpi["avg_ticket_size_lakhs"]["value"],
+            "feature_csi_unstable_count": kpi["feature_csi_counts"]["unstable"],
+            "feature_csi_marginal_count": kpi["feature_csi_counts"]["marginal"],
+            "feature_csi_stable_count": kpi["feature_csi_counts"]["stable"],
+        },
+        "funnel_latest_month": [
+            {"status": r["status"], "pct": r["percentages"].get(latest), "mom_delta_pp": r["mom_delta_pp"]}
+            for r in metrics["funnel"]
+        ],
+        "psi_trend": metrics["psi_table"],
+        "top_unstable_features": [
+            {"feature": r["feature"], "csi_disbursed": r["disbursed_csi"], "delta_vs_credit_check": r["delta"]}
+            for r in metrics["top_unstable_features"]
+        ],
+        "score_buckets_absent_in_disbursed": [
+            b["bucket"] for b in metrics["score_buckets"]
+            if b["absent_in_disbursed"] and (b["credit_check_pct"] or 0) > 0
+        ],
+        "risk_segments_absent_in_disbursed": [
+            r["segment"] for r in metrics["risk_segments"]
+            if r["absent_in_disbursed"] and (r["credit_check_pct"] or 0) > 0
+        ],
+        "risk_segment_top_gaps": [
+            {"segment": r["segment"], "gap_pp": r["gap_pp"]} for r in top_risk_gaps
+        ],
+        "approval_methods": [
+            {"method": r["method"], "credit_check_pct": r["credit_check_pct"],
+             "disbursed_pct": r["disbursed_pct"], "gap_pp": r["gap_pp"],
+             "conversion_alert": r["conversion_alert"], "fully_filtered_out": r["absent_in_disbursed"]}
+            for r in metrics["approval_methods"]
+        ],
+        "disbursal_trend": metrics["disbursal_table"],
     }
-    print(f"  [attach] payload: {str(conversation_data)[:400]!r}")
-
-    conv_response = make_api_request(
-        "POST",
-        f"{TOQAN_BASE_URL}/create_conversation",
-        headers,
-        json_data=conversation_data,
-    )
-
-    full_resp = conv_response.json()
-    print(f"  [attach] create_conversation full response: {full_resp}")
-    print(f"  [attach] conversation_id: {full_resp.get('conversation_id')!r}")
-
-    resp_str = str(full_resp).lower()
-    if file_id and file_id.lower() in resp_str:
-        print(f"  [attach] ✓ file_id confirmed in response")
-    else:
-        print(f"  [attach] ⚠ WARNING — file_id NOT found in response. "
-              f"File may not be attached. Check 'private_user_files' key format.")
-
-    for key in ("files", "attached_files", "file_ids", "attachments", "private_user_files"):
-        if key in full_resp:
-            print(f"  [attach] response field '{key}': {full_resp[key]!r}")
-
-    conversation_id = full_resp["conversation_id"]
-    request_id = full_resp["request_id"]
-    print(f"  [attach] request_id: {request_id!r}")
-    print(f"[create_analysis_conversation] END")
-    return conversation_id, request_id
 
 
-def wait_for_analysis(conversation_id, request_id):
-    """Wait for and retrieve analysis from Toqan."""
-    print("\n⏳ Waiting for analysis (2-5 min)...")
-    time.sleep(30)
+def _parse_narrative_json(answer):
+    """
+    Parse Toqan's narrative response, tolerating a leaked <think>...</think>
+    reasoning block or stray text before/after the JSON object — trust
+    nothing about LLM output formatting, same defensive posture as the old
+    HTML-detection guard this replaces.
+    """
+    text = (answer or "").strip()
+    if text.lower().startswith("<think>"):
+        end_tag = text.lower().find("</think>")
+        if end_tag != -1:
+            text = text[end_tag + len("</think>"):].strip()
 
-    headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
-    analysis = get_analysis(conversation_id, request_id, headers, TOQAN_BASE_URL)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError(f"No JSON object found in narrative response: {text[:200]!r}")
 
-    if not analysis:
-        raise RuntimeError("No analysis received from Toqan")
+    narrative = json.loads(text[start:end + 1])
+    if not isinstance(narrative, dict):
+        raise ValueError(f"Narrative response is not a JSON object: {type(narrative)}")
+    return narrative
 
-    return analysis
 
+def generate_narrative(metrics):
+    """
+    Ask Toqan for narrative prose only, given pre-computed facts embedded
+    directly in the prompt (no file upload — nothing left for Toqan to
+    "read" incorrectly). Returns a dict with the keys in NARRATIVE_KEYS.
 
-def _is_html_output(text):
-    """Return True when Toqan's output is a self-contained HTML document."""
-    return text.strip()[:20].lower().lstrip().startswith(("<!doctype html", "<html"))
+    Falls back to an empty dict on any failure (bad JSON, timeout, missing
+    keys) so a flaky LLM call degrades the report's prose quality but never
+    breaks the numbers or blocks the email — render_html_report() already
+    supplies safe generic sentences for any missing narrative key.
+    """
+    print("\n[generate_narrative] START")
+    facts = build_narrative_facts(metrics)
+    facts_json = json.dumps(facts, separators=(",", ":"), default=str, ensure_ascii=False)
+    print(f"  [generate_narrative] facts payload: {len(facts_json)} chars (embedded in prompt, no file upload)")
+
+    try:
+        prompt = get_narrative_prompt(facts_json)
+        headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
+        conv_response = make_api_request(
+            "POST", f"{TOQAN_BASE_URL}/create_conversation", headers,
+            json_data={"user_message": prompt},
+        )
+        full_resp = conv_response.json()
+        conversation_id = full_resp["conversation_id"]
+        request_id = full_resp["request_id"]
+        print(f"  [generate_narrative] conversation_id={conversation_id!r} request_id={request_id!r}")
+
+        time.sleep(10)
+        answer = get_analysis(conversation_id, request_id, headers, TOQAN_BASE_URL)
+        narrative = _parse_narrative_json(answer)
+
+        missing_keys = [k for k in NARRATIVE_KEYS if k not in narrative or not str(narrative[k]).strip()]
+        if missing_keys:
+            print(f"  [generate_narrative] ⚠ WARNING — narrative missing/empty keys: {missing_keys} "
+                  f"(safe generic sentences will be used for these sections)")
+
+        print(f"  [generate_narrative] parsed narrative keys: {list(narrative.keys())}")
+        print("[generate_narrative] END (success)")
+        return narrative
+    except Exception as e:
+        print(f"  [generate_narrative] ⚠ WARNING — narrative generation failed, falling back "
+              f"to generic prose for all sections. Error: {e}")
+        print("[generate_narrative] END (fallback)")
+        return {}
 
 
 # Generic industry-standard patterns that do NOT exist anywhere in this
-# model's actual data — if these show up in the generated report, it's a
-# strong signal the model fell back on a "textbook" credit-risk template
-# instead of reading the attached JSON (this exact failure mode is what
-# triggered the original hallucination audit).
+# model's actual data — if these show up in the LLM's narrative text, it's a
+# strong signal it fell back on a "textbook" credit-risk template instead of
+# narrating the given facts (the exact failure mode the original
+# hallucination audit uncovered).
 _HALLUCINATION_RED_FLAGS = [
     "300-350", "350-400", "400-450", "450-500", "500-550",
     "550-600", "600-650", "650-700", "700-750", "750-850",
@@ -263,120 +281,81 @@ _HALLUCINATION_RED_FLAGS = [
     "manual/auto",
 ]
 
+# Numbers with a decimal point, or 2+ digits — ignores lone single digits
+# ("2", "0") which occur constantly by pure chance in any document this size
+# and produced false "grounded" signals in the previous version of this
+# check (verified against a real generated report during this rewrite).
+_NUMBER_PATTERN = re.compile(r"\d+\.\d+|\d{2,}")
 
-def log_grounding_diagnostics(grounding_facts, analysis):
+
+def log_grounding_diagnostics(metrics, narrative):
     """
-    Post-hoc, NON-BLOCKING diagnostic log — compares Toqan's generated report
-    text against known-correct source values (grounding_facts, produced by
-    utils.uptop_v3_extractor.extract_grounding_facts) and prints a clear
-    pass/fail breakdown to stdout (captured in Airflow task logs). This does
-    not fail the pipeline or block the email — it only makes "why did this
-    hallucinate" visible without having to manually diff the report against
-    extracted_uptop_v3.json after the fact.
+    Post-hoc, NON-BLOCKING diagnostic log for the LLM-written narrative text
+    only. The tables/KPIs/alerts in the report are Python-computed by
+    construction and are therefore not re-checked here — this only flags
+    (a) numbers in the narrative that were never supplied in the facts
+    payload (i.e. the LLM inventing a figure instead of only narrating
+    given ones), and (b) generic hallucination fingerprints.
     """
     print("\n" + "=" * 80)
-    print("[GROUNDING CHECK] Comparing Toqan's generated report against source-of-truth data")
+    print("[GROUNDING CHECK] Checking LLM narrative text against the facts it was given")
     print("=" * 80)
 
-    text = analysis or ""
-    text_lower = text.lower()
-    grounding_facts = grounding_facts or {}
+    facts_json = json.dumps(build_narrative_facts(metrics), default=str)
+    narrative_text = " ".join(str(v) for v in (narrative or {}).values())
 
-    # 1. PSI values — do the exact source numbers appear verbatim anywhere?
-    print("\n[GROUNDING CHECK] PSI values expected verbatim in the report:")
-    psi_missing = 0
-    for section_key, label in (("psi_credit_check", "Credit Check"), ("psi_disbursed", "Disbursed")):
-        for month, value in (grounding_facts.get(section_key) or {}).items():
-            if value is None:
-                continue
-            found = value in text
-            print(f"  [{'FOUND' if found else 'MISSING'}] {label} PSI {month} = {value}")
-            if not found:
-                psi_missing += 1
-    if psi_missing:
-        print(f"  -> WARNING: {psi_missing} PSI value(s) not found verbatim in the report. "
-              f"Likely fabricated PSI numbers — check the PSI & Score Distribution section.")
+    if not narrative_text.strip():
+        print("  No narrative text to check (generation failed or was skipped — "
+              "generic fallback sentences were used, which cannot hallucinate numbers).")
+        print("=" * 80 + "\n")
+        return
 
-    # 2. Funnel counts for the latest month — spot-check raw counts.
-    latest_month = grounding_facts.get("latest_month")
-    print(f"\n[GROUNDING CHECK] Application funnel counts expected for {latest_month!r}:")
-    funnel_missing = []
-    for status, value in (grounding_facts.get("funnel_counts_latest") or {}).items():
-        if value is None:
-            continue
-        found = value in text
-        print(f"  [{'FOUND' if found else 'MISSING'}] {status} = {value}")
-        if not found:
-            funnel_missing.append((status, value))
-    if funnel_missing:
-        print(f"  -> WARNING: {len(funnel_missing)} funnel count(s) not found verbatim: {funnel_missing}")
+    narrative_numbers = set(_NUMBER_PATTERN.findall(narrative_text))
+    invented = sorted(n for n in narrative_numbers if n not in facts_json)
+    print(f"  Narrative mentions {len(narrative_numbers)} distinct number(s); "
+          f"{len(invented)} not present anywhere in the facts given to the LLM.")
+    if invented:
+        print(f"  -> WARNING: possibly invented number(s) in narrative prose: {invented}")
 
-    # 3. Real category labels from THIS file — how many actually show up?
-    #    (label_terms comes structured from get_label_categories() — not
-    #    re-parsed from formatted text — so labels containing commas, like
-    #    score-bucket intervals "(0.0, 0.201]", aren't accidentally split.)
-    print("\n[GROUNDING CHECK] Real category labels (from this file) found in the report:")
-    whitelist_terms = grounding_facts.get("label_terms") or []
-    found_labels = [t for t in whitelist_terms if t in text]
-    missing_labels = [t for t in whitelist_terms if t not in text]
-    total = len(whitelist_terms) or 1
-    print(f"  {len(found_labels)}/{len(whitelist_terms)} real labels found verbatim "
-          f"({100 * len(found_labels) / total:.0f}%).")
-    if missing_labels:
-        print(f"  -> MISSING real labels (model may never have read the file for this "
-              f"section): {missing_labels}")
-
-    # 4. Generic hallucination fingerprints — patterns that don't exist in the
-    #    source data but are extremely common in generic credit-risk templates.
-    print("\n[GROUNDING CHECK] Scanning for generic hallucination fingerprints:")
-    hits = [pat for pat in _HALLUCINATION_RED_FLAGS if pat in text_lower]
+    hits = [pat for pat in _HALLUCINATION_RED_FLAGS if pat in narrative_text.lower()]
     if hits:
-        print(f"  -> RED FLAG: found generic/templated terms that do NOT exist in the "
-              f"source file: {hits}. This strongly suggests the model substituted a "
-              f"generic industry template instead of reading the attached JSON for "
-              f"that section (the exact bug this check exists to catch).")
+        print(f"  -> RED FLAG: generic hallucination fingerprints in narrative: {hits}. "
+              f"This suggests the model fell back on a generic industry template.")
     else:
-        print("  No known generic hallucination fingerprints detected.")
+        print("  No known generic hallucination fingerprints detected in narrative.")
 
-    # 5. Overall verdict — quick eyeball summary line for scanning Airflow logs.
-    total_checks = psi_missing + len(funnel_missing) + len(missing_labels) + len(hits)
+    total_issues = len(invented) + len(hits)
     print("\n[GROUNDING CHECK] VERDICT: " +
-          ("✓ No grounding issues detected." if total_checks == 0
-           else f"⚠ {total_checks} grounding issue(s) detected — see warnings above. "
-                f"Report may contain hallucinated content."))
+          ("✓ Narrative fully grounded in the given facts." if total_issues == 0
+           else f"⚠ {total_issues} issue(s) detected in the narrative prose — see warnings above. "
+                f"Note: all tables/numbers in the report itself are Python-computed and unaffected."))
     print("=" * 80 + "\n")
 
 
-def send_report_email(file_name, analysis, model_name=MODEL_NAME):
-    """Generate and send email report."""
+def build_report_html(metrics, narrative):
+    """Render the final self-contained HTML report from computed metrics + narrative prose."""
+    return render_html_report(metrics, narrative)
+
+
+def send_report_email(file_name, report_html, model_name=MODEL_NAME):
+    """Send the rendered HTML report as the email body."""
     print("\n📧 Creating and sending email...")
 
     date_str = datetime.now().strftime('%Y-%m-%d')
     config = EMAIL_CONFIG.get(model_name, EMAIL_CONFIG["default"])
     subject = f"{config['title']} - {file_name} - {date_str}"
 
-    if _is_html_output(analysis):
-        text_body = (
-            f"UpTop V3 Model Monitoring Report — {file_name} — {date_str}\n\n"
-            f"Please view this email in an HTML-capable email client."
-        )
-        send_email(
-            subject=subject,
-            html_content=analysis,
-            text_content=text_body,
-            recipients=RECIPIENT_EMAIL_UPTOP_V3,
-        )
-        print("✓ HTML report sent as email body")
-    else:
-        html_email = create_html_email(file_name, analysis, model_name)
-        text_email = remove_emojis(analysis)
-        send_email(
-            subject=subject,
-            html_content=html_email,
-            text_content=text_email,
-            recipients=RECIPIENT_EMAIL_UPTOP_V3,
-        )
-        print("✓ Plain text report sent with template wrapper")
+    text_body = (
+        f"UpTop V3 Model Monitoring Report — {file_name} — {date_str}\n\n"
+        f"Please view this email in an HTML-capable email client."
+    )
+    send_email(
+        subject=subject,
+        html_content=report_html,
+        text_content=text_body,
+        recipients=RECIPIENT_EMAIL_UPTOP_V3,
+    )
+    print("✓ HTML report sent as email body")
 
 
 # ============================================================================
@@ -390,16 +369,14 @@ def main():
     print("=" * 80)
 
     buffer = None
-    json_buffer = None
     try:
         s3_key, file_name, _file_size = find_latest_file()
         buffer = download_file(s3_key)
-        json_file_name, json_buffer, label_whitelist, grounding_facts = extract_html_to_json(file_name, buffer)
-        file_id = upload_to_toqan(json_file_name, json_buffer)
-        conversation_id, request_id = create_analysis_conversation(file_id, label_whitelist)
-        analysis = wait_for_analysis(conversation_id, request_id)
-        log_grounding_diagnostics(grounding_facts, analysis)
-        send_report_email(file_name, analysis, MODEL_NAME)
+        metrics = extract_and_compute_metrics(file_name, buffer)
+        narrative = generate_narrative(metrics)
+        log_grounding_diagnostics(metrics, narrative)
+        report_html = build_report_html(metrics, narrative)
+        send_report_email(file_name, report_html, MODEL_NAME)
 
         print("\n" + "=" * 80)
         print("✅ SUCCESS - Pipeline completed!")
@@ -411,8 +388,6 @@ def main():
     finally:
         if buffer:
             buffer.close()
-        if json_buffer:
-            json_buffer.close()
 
 
 # ============================================================================
@@ -432,6 +407,7 @@ if _AIRFLOW_AVAILABLE:
 
     # ── Task callables ────────────────────────────────────────────────────
     # Each callable pulls/pushes via XCom so tasks stay decoupled.
+    # `metrics` is a plain JSON-serializable dict, so it XComs cleanly.
 
     def _task_find_latest(**context):
         s3_key, file_name, file_size = find_latest_file()
@@ -439,42 +415,34 @@ if _AIRFLOW_AVAILABLE:
         context["ti"].xcom_push(key="file_name",    value=file_name)
         context["ti"].xcom_push(key="file_size_mb", value=round(file_size, 4))
 
-    def _task_upload_file(**context):
+    def _task_extract_and_compute(**context):
         ti        = context["ti"]
         s3_key    = ti.xcom_pull(task_ids="find_latest", key="s3_key")
         file_name = ti.xcom_pull(task_ids="find_latest", key="file_name")
-        buffer      = None
-        json_buffer = None
+        buffer = None
         try:
             buffer = download_file(s3_key)
-            json_file_name, json_buffer, label_whitelist, grounding_facts = extract_html_to_json(file_name, buffer)
-            file_id = upload_to_toqan(json_file_name, json_buffer)
+            metrics = extract_and_compute_metrics(file_name, buffer)
         finally:
             if buffer:
                 buffer.close()
-            if json_buffer:
-                json_buffer.close()
-        ti.xcom_push(key="file_id", value=file_id)
-        ti.xcom_push(key="label_whitelist", value=label_whitelist)
-        ti.xcom_push(key="grounding_facts", value=grounding_facts)
+        ti.xcom_push(key="metrics", value=metrics)
 
-    def _task_start_analysis(**context):
-        ti      = context["ti"]
-        file_id = ti.xcom_pull(task_ids="upload_file", key="file_id")
-        label_whitelist = ti.xcom_pull(task_ids="upload_file", key="label_whitelist")
-        conv_id, request_id = create_analysis_conversation(file_id, label_whitelist)
-        ti.xcom_push(key="conversation_id", value=conv_id)
-        ti.xcom_push(key="request_id", value=request_id)
+    def _task_generate_narrative(**context):
+        ti = context["ti"]
+        metrics = ti.xcom_pull(task_ids="extract_and_compute", key="metrics")
+        narrative = generate_narrative(metrics)
+        ti.xcom_push(key="narrative", value=narrative)
 
-    def _task_fetch_and_email(**context):
-        ti              = context["ti"]
-        conv_id         = ti.xcom_pull(task_ids="start_analysis", key="conversation_id")
-        request_id      = ti.xcom_pull(task_ids="start_analysis", key="request_id")
-        file_name       = ti.xcom_pull(task_ids="find_latest",    key="file_name")
-        grounding_facts = ti.xcom_pull(task_ids="upload_file",    key="grounding_facts")
-        analysis        = wait_for_analysis(conv_id, request_id)
-        log_grounding_diagnostics(grounding_facts, analysis)
-        send_report_email(file_name, analysis, MODEL_NAME)
+    def _task_render_and_email(**context):
+        ti        = context["ti"]
+        metrics   = ti.xcom_pull(task_ids="extract_and_compute", key="metrics")
+        narrative = ti.xcom_pull(task_ids="generate_narrative", key="narrative")
+        file_name = ti.xcom_pull(task_ids="find_latest", key="file_name")
+
+        log_grounding_diagnostics(metrics, narrative)
+        report_html = build_report_html(metrics, narrative)
+        send_report_email(file_name, report_html, MODEL_NAME)
 
     # ── DAG ───────────────────────────────────────────────────────────────
 
@@ -488,7 +456,7 @@ if _AIRFLOW_AVAILABLE:
     with DAG(
         dag_id="uptop_v3_insights",
         default_args=DAG_DEFAULT_ARGS,
-        description="S3 → Toqan analysis → email (UpTop V3 model monitoring)",
+        description="S3 → deterministic metrics → Toqan narrative → email (UpTop V3 model monitoring)",
         schedule_interval="0 9 * * 0",  # Every Sunday at 09:00 AM
         start_date=days_ago(1),
         catchup=False,
@@ -501,22 +469,22 @@ if _AIRFLOW_AVAILABLE:
             python_callable=_task_find_latest,
         )
 
-        t2_upload_file = PythonOperator(
-            task_id="upload_file",
-            python_callable=_task_upload_file,
+        t2_extract_and_compute = PythonOperator(
+            task_id="extract_and_compute",
+            python_callable=_task_extract_and_compute,
         )
 
-        t3_start_analysis = PythonOperator(
-            task_id="start_analysis",
-            python_callable=_task_start_analysis,
+        t3_generate_narrative = PythonOperator(
+            task_id="generate_narrative",
+            python_callable=_task_generate_narrative,
         )
 
-        t4_fetch_and_email = PythonOperator(
-            task_id="fetch_analysis_and_send_email",
-            python_callable=_task_fetch_and_email,
+        t4_render_and_email = PythonOperator(
+            task_id="render_and_email",
+            python_callable=_task_render_and_email,
         )
 
-        t1_find_latest >> t2_upload_file >> t3_start_analysis >> t4_fetch_and_email
+        t1_find_latest >> t2_extract_and_compute >> t3_generate_narrative >> t4_render_and_email
 
 
 # ============================================================================

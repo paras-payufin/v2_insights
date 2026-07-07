@@ -143,6 +143,21 @@ MODEL_REGISTRY = {
 }
 
 
+def get_narrative_prompt(facts_json, model_specific="uptop_v3_narrative"):
+    """
+    Load the narrative-only prompt and inject the pre-computed facts JSON.
+
+    Unlike get_analysis_prompt(), this deliberately bypasses guardrails/club/
+    model-type assembly: the narrative prompt is self-contained on purpose —
+    it is not asking the model to produce a full report, only prose strings
+    around numbers that are already final, so none of the "read the file,
+    render every section, use exact labels" machinery built for full-report
+    generation is relevant here.
+    """
+    prompt = _load_prompt_file(PROMPTS_DIR / "model_specific" / f"{model_specific}.txt")
+    return _apply_prompt_vars(prompt, {"FACTS_JSON": facts_json})
+
+
 def get_prompt_by_model_name(model_name, prompt_vars=None):
     name = model_name.lower().replace(" ", "_")
     if name not in MODEL_REGISTRY:
