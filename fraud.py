@@ -117,7 +117,7 @@ def upload_to_toqan(file_name, file_buffer):
 
 
 def create_analysis_conversation(file_id):
-    """Create analysis conversation with Toqan; returns conversation_id."""
+    """Create analysis conversation with Toqan; returns (conversation_id, request_id)."""
     print(f"\n[create_analysis_conversation] START — model={MODEL_NAME!r}")
     time.sleep(5)
 
@@ -161,17 +161,19 @@ def create_analysis_conversation(file_id):
             print(f"  [attach] response field '{key}': {full_resp[key]!r}")
 
     conversation_id = full_resp["conversation_id"]
+    request_id = full_resp["request_id"]
+    print(f"  [attach] request_id: {request_id!r}")
     print(f"[create_analysis_conversation] END")
-    return conversation_id
+    return conversation_id, request_id
 
 
-def wait_for_analysis(conversation_id):
+def wait_for_analysis(conversation_id, request_id):
     """Wait for and retrieve analysis from Toqan."""
     print("\n⏳ Waiting for analysis (2-5 min)...")
     time.sleep(30)
 
     headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
-    analysis = get_analysis(conversation_id, headers, TOQAN_BASE_URL)
+    analysis = get_analysis(conversation_id, request_id, headers, TOQAN_BASE_URL)
 
     if not analysis:
         raise RuntimeError("No analysis received from Toqan")
@@ -279,8 +281,8 @@ def main():
         s3_key, file_name, file_size = find_latest_file()
         buffer = download_file(s3_key)
         file_id = upload_to_toqan(file_name, buffer)
-        conversation_id = create_analysis_conversation(file_id)
-        analysis = wait_for_analysis(conversation_id)
+        conversation_id, request_id = create_analysis_conversation(file_id)
+        analysis = wait_for_analysis(conversation_id, request_id)
         send_report_email(file_name, analysis, MODEL_NAME)
 
         print("\n" + "=" * 60)
@@ -356,9 +358,10 @@ if _AIRFLOW_AVAILABLE:
         print(f"[task:start_analysis] START — run_id={run_id!r}")
         file_id = ti.xcom_pull(task_ids="upload_file", key="file_id")
         print(f"  [task:start_analysis] XCom pulled — file_id={file_id!r}")
-        conv_id = create_analysis_conversation(file_id)
+        conv_id, request_id = create_analysis_conversation(file_id)
         ti.xcom_push(key="conversation_id", value=conv_id)
-        print(f"  [task:start_analysis] XCom pushed — conversation_id={conv_id!r}")
+        ti.xcom_push(key="request_id", value=request_id)
+        print(f"  [task:start_analysis] XCom pushed — conversation_id={conv_id!r} request_id={request_id!r}")
         print(f"[task:start_analysis] END")
 
     def _task_fetch_and_email(**context):
@@ -366,11 +369,12 @@ if _AIRFLOW_AVAILABLE:
         ti = context["ti"]
         print(f"[task:fetch_and_email] START — run_id={run_id!r}")
         conv_id   = ti.xcom_pull(task_ids="start_analysis", key="conversation_id")
+        request_id = ti.xcom_pull(task_ids="start_analysis", key="request_id")
         file_name = ti.xcom_pull(task_ids="find_latest",    key="file_name")
         file_size = ti.xcom_pull(task_ids="find_latest",    key="file_size_mb") or 0.0
         file_id   = ti.xcom_pull(task_ids="upload_file",    key="file_id")
         print(f"  [task:fetch_and_email] XCom pulled — conv_id={conv_id!r} file_name={file_name!r}")
-        analysis = wait_for_analysis(conv_id)
+        analysis = wait_for_analysis(conv_id, request_id)
         send_report_email(file_name, analysis, MODEL_NAME)
 
         print("\n" + "=" * 60)
