@@ -11,9 +11,11 @@ locally without installing apache-airflow.
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import json
 import time
 from datetime import datetime, timedelta
 from io import BytesIO
+from pathlib import Path
 
 import boto3
 
@@ -27,6 +29,7 @@ from config.prompts import get_prompt_by_model_name
 from email_service.template import create_html_email, EMAIL_CONFIG
 from email_service.sender import send_email
 from utils.helpers import get_analysis, make_api_request, remove_emojis
+from utils.uptop_v3_extractor import extract_from_html
 from utils.utils import TOQAN_API_KEY, TOQAN_BASE_URL
 from email_service.error_notifier import dag_failure_callback, notify_error
 
@@ -75,6 +78,38 @@ def download_file(s3_key):
     buffer.seek(0)
     print("✓ Download complete")
     return buffer
+
+
+def extract_html_to_json(file_name, html_buffer):
+    """
+    Convert the downloaded UpTop V3 HTML report into structured raw-data JSON.
+
+    Toqan analyzes this JSON instead of the raw HTML for this model — the
+    extractor pulls every table into plain key/value data with no computed
+    metrics, so the AI still does all calculation itself.
+
+    Args:
+        file_name:   Original HTML file name (used for date detection + naming).
+        html_buffer: BytesIO buffer holding the downloaded HTML bytes.
+
+    Returns:
+        tuple: (json_file_name, json_buffer)
+    """
+    print("\n[extract_html_to_json] START")
+    html_buffer.seek(0)
+    html_content = html_buffer.read().decode("utf-8")
+
+    data = extract_from_html(html_content, source_label=file_name)
+
+    json_bytes = json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8")
+    json_file_name = f"{Path(file_name).stem}.json"
+    json_buffer = BytesIO(json_bytes)
+
+    print(f"  [extract_html_to_json] source: {file_name!r} ({html_buffer.getbuffer().nbytes:,} bytes)")
+    print(f"  [extract_html_to_json] output: {json_file_name!r} ({len(json_bytes):,} bytes)")
+    print(f"  [extract_html_to_json] latest_month: {data['_meta'].get('latest_month')!r}")
+    print(f"[extract_html_to_json] END")
+    return json_file_name, json_buffer
 
 
 def upload_to_toqan(file_name, file_buffer):
@@ -203,10 +238,12 @@ def main():
     print("=" * 80)
 
     buffer = None
+    json_buffer = None
     try:
         s3_key, file_name, _file_size = find_latest_file()
         buffer = download_file(s3_key)
-        file_id = upload_to_toqan(file_name, buffer)
+        json_file_name, json_buffer = extract_html_to_json(file_name, buffer)
+        file_id = upload_to_toqan(json_file_name, json_buffer)
         conversation_id, request_id = create_analysis_conversation(file_id)
         analysis = wait_for_analysis(conversation_id, request_id)
         send_report_email(file_name, analysis, MODEL_NAME)
@@ -221,6 +258,8 @@ def main():
     finally:
         if buffer:
             buffer.close()
+        if json_buffer:
+            json_buffer.close()
 
 
 # ============================================================================
@@ -251,13 +290,17 @@ if _AIRFLOW_AVAILABLE:
         ti        = context["ti"]
         s3_key    = ti.xcom_pull(task_ids="find_latest", key="s3_key")
         file_name = ti.xcom_pull(task_ids="find_latest", key="file_name")
-        buffer    = None
+        buffer      = None
+        json_buffer = None
         try:
-            buffer  = download_file(s3_key)
-            file_id = upload_to_toqan(file_name, buffer)
+            buffer = download_file(s3_key)
+            json_file_name, json_buffer = extract_html_to_json(file_name, buffer)
+            file_id = upload_to_toqan(json_file_name, json_buffer)
         finally:
             if buffer:
                 buffer.close()
+            if json_buffer:
+                json_buffer.close()
         ti.xcom_push(key="file_id", value=file_id)
 
     def _task_start_analysis(**context):

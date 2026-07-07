@@ -1,12 +1,10 @@
-You are a senior data scientist specialising in model monitoring and evaluation. Analyse the attached UpTop V3 Model Monitoring Report (HTML file) and produce a structured insights summary.
+You are a senior data scientist specialising in model monitoring and evaluation. Analyse the attached UpTop V3 Model Monitoring Report (JSON file — raw data extracted from the original HTML report) and produce a structured insights summary.
 
-═══════════════════════════════════════════════════════
-ANTI-FABRICATION RULES — READ BEFORE ANYTHING ELSE          [NEW]
-═══════════════════════════════════════════════════════
-1. Every numeric value you write must be copied verbatim from the HTML. Do not compute, estimate, round differently, or infer any value that is not explicitly present as rendered text or a table cell in the file.
-2. For PSI values: read them directly from the PSI table in the file. Do not derive PSI from score distributions.
-3. For CSI values: read every single CSI figure directly from the CSI/feature stability table in the file — one cell at a time. Do NOT compute CSI from feature distributions or from any other calculation. If a CSI cell is missing or blank, show "—".
-4. For percentage shares and counts: read them from the table cells. Computed derived metrics (Disbursal Rate, Rejection Rate, CA-LPS%, Avg Ticket Size, MoM deltas) are the ONLY values you may calculate — and only from raw counts/amounts that are explicitly in the file.
+
+1. Every numeric value you write must be copied verbatim from the JSON. Do not compute, estimate, round differently, or infer any value that is not explicitly present as a field in the file.
+2. For PSI values: read them directly from the "psi" fields in the file (credit_check.psi and disbursed.psi). Do not derive PSI from score distributions.
+3. For CSI values: read every single CSI figure directly from the "feature_csi" objects in the file (credit_check.feature_csi and disbursed.feature_csi) — one field at a time. Do NOT compute CSI from feature distributions or from any other calculation. If a CSI value is missing, null, or blank, show "—".
+4. For percentage shares and counts: read them from the "counts" and "percentages" fields. Computed derived metrics (Disbursal Rate, Rejection Rate, CA-LPS%, Avg Ticket Size, MoM deltas) are the ONLY values you may calculate — and only from raw counts/amounts that are explicitly in the file.
 5. Do not estimate revenue impact, potential loss, or market size. If such a figure is not in the file, omit it entirely — do not approximate.
 6. The Early Warning thresholds in this prompt are YOUR reference — apply them to values you read from the file. Do not invent additional thresholds or invent threshold breach statuses for metrics not listed.
 7. For the Recommended Actions table: Owner, Priority, and Timeline are judgment calls based on severity — use the standard mapping below. Do not fabricate business-specific owners or deadlines not grounded in the data:
@@ -48,7 +46,7 @@ PSI table: for each month available in the file, show Credit Check PSI (labelled
 Score decile table: distribution across V3 buckets for Credit Check vs Disbursed in the latest month — show % for each bucket as read from the file. Flag any bucket present in Credit Check but completely absent in Disbursed with a callout explaining what this signals about filtering behaviour. Add 2–3 sentences on stability trend using only data from the file.
 
 **CSI & Feature Stability:**
-[STRENGTHENED] Read every CSI value directly from the feature stability table in the HTML file — copy each cell value exactly as it appears. Do not compute or estimate any CSI figure.
+[STRENGTHENED] Read every CSI value directly from the feature_csi fields in the JSON file — copy each value exactly as it appears. Do not compute or estimate any CSI figure.
 Side-by-side table: Feature Name | CSI (Credit Check) | CC Status | CSI (Disbursed) | Disbursed Status | Delta.
 Apply RAG status and row colouring ONLY to Disbursed CSI — Credit Check CSI column is shown for reference with no flag, no badge, no colour.
 CSI thresholds (Disbursed only): Stable <0.10 (Green) / Marginal 0.10–0.25 (Amber) / Unstable >0.25 (Red).
