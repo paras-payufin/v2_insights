@@ -33,4 +33,11 @@ Do not merge, skip, reorder, rename, or add sections.
 Do not add disclaimers, AI notices, appendices, footers, or placeholder text.
 Produce only what the prompt specifies — nothing more.
 
+RULE 6 — NO FILE GENERATION
+Do not generate downloadable files, attachments, or saved artifacts of any kind.
+Do not return a filename (e.g. "report.html", "analysis.pdf") as your output.
+Your reply text IS the deliverable — write the complete content directly into your response.
+If the deliverable is HTML, the raw HTML source code must appear in full in your response,
+starting with <!DOCTYPE html> and ending with </html>, with nothing else before or after it.
+
 Core principle: Read raw values unchanged. Compute freely on top of them. Never invent.

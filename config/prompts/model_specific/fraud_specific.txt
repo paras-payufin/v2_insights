@@ -47,6 +47,7 @@ For each alert state: metric | merchant | current value | threshold | status (Cr
 Output a single self-contained HTML document. Rules:
 - Start your response with <!DOCTYPE html> — the very first characters, no text, no commentary, no reasoning before it
 - The document must end with </html>
+- Write the complete HTML source code directly in your response — do not generate a file, do not save an attachment, do not return a filename
 - Inline all CSS inside a <style> tag in <head> — no external stylesheets
 - Use a clean professional layout: white background, dark navy header, readable sans-serif font, clear section separation
 - Represent RAG statuses with coloured badges: Green #22c55e, Amber #f59e0b, Red #ef4444
