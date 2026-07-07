@@ -138,24 +138,34 @@ def get_analysis(conversation_id, request_id, headers, base_url):
 
         if status == "finished":
             answer = data.get("answer", "")
+            attachments = data.get("attachments") or []
+            if attachments:
+                names = [a.get("name") for a in attachments]
+                logging.warning(
+                    f"[Poll {attempt}] Toqan response includes {len(attachments)} "
+                    f"file attachment(s): {names}. If the report was expected as "
+                    f"inline HTML, the model generated a downloadable artifact "
+                    f"instead — check the prompt's output-format instructions."
+                )
             if not answer or not answer.strip():
                 raise RuntimeError(
                     "Toqan returned status=finished but answer is empty. "
+                    f"attachments={attachments!r}. "
                     f"conversation_id={conversation_id}"
                 )
             logging.info(
                 f"[Poll {attempt}] Completed. Answer length: {len(answer)} chars. "
                 f"Preview: {answer[:200]!r}"
             )
-            # Guard: if the answer looks like a file artifact reference instead of
-            # actual content (e.g. "final_fraud_report.html"), the Toqan model
-            # generated a downloadable file rather than returning HTML inline.
-            # Failing loudly here is better than sending a broken template email.
-            if len(answer.strip()) < 500 and not answer.strip().lower().lstrip().startswith(("<!doctype html", "<html")):
+            # Guard: fail loudly if Toqan produced a file artifact (per the
+            # documented `attachments` field) or the inline answer is too short/
+            # not HTML to be a valid report, rather than sending a broken email.
+            looks_like_html = answer.strip().lower().lstrip().startswith(("<!doctype html", "<html"))
+            if attachments or (len(answer.strip()) < 500 and not looks_like_html):
                 raise RuntimeError(
-                    f"Toqan returned status=finished but answer looks like a file "
-                    f"reference or is too short to be a valid report "
-                    f"({len(answer.strip())} chars). "
+                    f"Toqan returned status=finished but did not return a valid "
+                    f"inline HTML report ({len(answer.strip())} chars, "
+                    f"attachments={attachments!r}). "
                     f"Answer: {answer.strip()!r}. "
                     f"The model may have generated a downloadable file artifact "
                     f"instead of returning the HTML inline. "
