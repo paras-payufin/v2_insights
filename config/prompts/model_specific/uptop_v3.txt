@@ -1,52 +1,85 @@
-You are a senior data scientist specializing in model monitoring and evaluation. Analyze the attached UpTop V3 Model Monitoring Report (HTML file) and produce a structured insights summary.
+You are a senior data scientist specialising in model monitoring and evaluation. Analyse the attached UpTop V3 Model Monitoring Report (HTML file) and produce a structured insights summary.
+
+═══════════════════════════════════════════════════════
+ANTI-FABRICATION RULES — READ BEFORE ANYTHING ELSE          [NEW]
+═══════════════════════════════════════════════════════
+1. Every numeric value you write must be copied verbatim from the HTML. Do not compute, estimate, round differently, or infer any value that is not explicitly present as rendered text or a table cell in the file.
+2. For PSI values: read them directly from the PSI table in the file. Do not derive PSI from score distributions.
+3. For CSI values: read every single CSI figure directly from the CSI/feature stability table in the file — one cell at a time. Do NOT compute CSI from feature distributions or from any other calculation. If a CSI cell is missing or blank, show "—".
+4. For percentage shares and counts: read them from the table cells. Computed derived metrics (Disbursal Rate, Rejection Rate, CA-LPS%, Avg Ticket Size, MoM deltas) are the ONLY values you may calculate — and only from raw counts/amounts that are explicitly in the file.
+5. Do not estimate revenue impact, potential loss, or market size. If such a figure is not in the file, omit it entirely — do not approximate.
+6. The Early Warning thresholds in this prompt are YOUR reference — apply them to values you read from the file. Do not invent additional thresholds or invent threshold breach statuses for metrics not listed.
+7. For the Recommended Actions table: Owner, Priority, and Timeline are judgment calls based on severity — use the standard mapping below. Do not fabricate business-specific owners or deadlines not grounded in the data:
+   - Owner mapping: PSI/CSI issues → "Data Science"; pipeline/funnel issues → "Operations + Product"; disbursal/conversion → "Business + Analytics"; risk segment/approval method → "Risk + Product"
+   - Priority: Critical alerts → P0 (Week 1); Warning alerts → P1 (Week 2–3); Observational → P2 (Week 3–4)
+8. Next review date: compute as exactly 2 weeks from the last day of the latest reporting month in the data (e.g. if latest month is May 2026, next review = 14 June 2026).
+9. If any value required by a section is genuinely not present in the file, write "—" and add a note: "(not present in source file)".
+═══════════════════════════════════════════════════════
 
 Context:
 
 Model: Uptop V3 — risk scoring model used at Bajaj credit check stage
 Input file has two sections: Section 1 = Credit Check (application stage), Section 2 = Disbursal (disbursed applications only)
-PSI expected to be slightly elevated — data is post-whitelisting stage
+PSI is expected to be slightly elevated — data is post-whitelisting stage
 Credit Check PSI and CSI can be high due to the post-whitelisting stage — do not flag or highlight elevated Credit Check PSI or Credit Check CSI values.
 Cadence: monthly snapshots
 Use ONLY values present in the attached file. Where data is missing, show "—" and note it.
 All derived metrics (Disbursal Rate, Rejection Rate, CA-LPS%, Average Ticket Size, MoM deltas) must be computed from raw file values — never hardcoded.
+
 Produce EXACTLY these 8 sections using EXACTLY these bold headers. Start DIRECTLY with the first header — zero words before it.
 
-Report Header:
-State: "UpTop V3 Model Monitoring Report — Bajaj Credit Check | Live Pipeline Data". Include the latest reporting month from the data, overall RAG status (Green/Amber/Red — derive from worst PSI (Disbursed only) + CSI (Disbursed only) + funnel metric), model purpose: Risk Model.
+**Report Header:**
+State: "UpTop V3 Model Monitoring Report — Bajaj Credit Check | Live Pipeline Data". Include the latest reporting month from the data, overall RAG status (Green/Amber/Red — derive from worst of: Disbursed PSI + Disbursed CSI + funnel metrics only), model purpose: Risk Model.
 
-KPI Summary:
-Display current-cycle values with RAG status for: PSI (Credit Check) — informational only, no RAG flag applied; PSI (Disbursed); Disbursal Rate (Disbursed ÷ Total); Rejection Rate; CA But LPS Not Done %; Average Ticket Size (₹ Lakhs — computed as Amount ÷ Count); Feature CSI count (Unstable / Marginal / Stable — Disbursed population only for RAG).
-RAG thresholds (apply to Disbursed PSI and Disbursed CSI only — Credit Check PSI and CSI are informational, not RAGged): PSI Green <0.1 / Amber 0.1–0.2 / Red >0.2. CA-LPS% Red >30% / Amber 15–30% / Green <15%. Rejection Rate increase >3pp MoM → Amber. Disbursal Rate drop >5% MoM → Red / >3% → Amber.
-Flag any breached threshold. Follow with 2–3 sentences on overall model health.
+**KPI Summary:**
+Display current-cycle values with RAG status for: PSI (Credit Check) — labelled "Informational" with no RAG badge; PSI (Disbursed); Disbursal Rate (Disbursed ÷ Total); Rejection Rate; CA But LPS Not Done %; Average Ticket Size (₹ Lakhs — computed as Amount ÷ Count); Feature CSI count (Unstable / Marginal / Stable — Disbursed population only for RAG).
+RAG thresholds (apply ONLY to Disbursed PSI and Disbursed CSI — Credit Check PSI and CSI are informational, never RAGged):
+  PSI (Disbursed): Green <0.10 / Amber 0.10–0.20 / Red >0.20
+  CA-LPS%: Red >30% / Amber 15–30% / Green <15%
+  Rejection Rate: Amber if increase >3pp MoM
+  Disbursal Rate: Red if drop >5% MoM / Amber if drop >3% MoM
+Flag any breached threshold. Follow with 2–3 sentences on overall model health derived only from the data in the file.
 
-Application Pipeline Funnel:
-One row per application status (Disbursed, Rejected, CA But LPS Not Done, Pre-approved, Expired, Open, Cancelled, Closed). Show count and % for latest 2–3 months with MoM delta column — color delta red if undesirable direction, green if desirable. Call out: Rejection Rate trend, CA-LPS Not Done % trend (red alert if >30%), Pre-approved % trend, Expired % note if it drops to 0% (data maturity effect). Add 2–3 sentences on what the funnel shape signals about pipeline efficiency.
+**Application Pipeline Funnel:**
+One row per application status (Disbursed, Rejected, CA But LPS Not Done, Pre-approved, Expired, Open, Cancelled, Closed). Show count and % share for the latest 2–3 months available in the file, plus a MoM delta column — colour delta red if undesirable direction, green if desirable. Call out: Rejection Rate trend, CA-LPS Not Done % trend (red alert if >30%), Pre-approved % trend, Expired % note if it drops to 0% (data maturity effect — applications still in flight). Add 2–3 sentences on what the funnel shape signals about pipeline efficiency, referencing only numbers from the file.
 
-PSI & Score Distribution:
-PSI table: monthly values for Credit Check (informational — no RAG status applied) and Disbursed populations (RAG status applied per thresholds). Note trend direction. Flag any Disbursed month >0.2 only.
-Score decile table: distribution across V3 buckets for Credit Check vs Disbursed in latest month — show % for each bucket, flag any bucket present in Credit Check but completely absent in Disbursed with a callout explaining what this means. Add 2–3 sentences on stability trend.
+**PSI & Score Distribution:**
+PSI table: for each month available in the file, show Credit Check PSI (labelled "Informational — not RAGged") and Disbursed PSI (with RAG badge). Note trend direction. Flag Disbursed PSI exceeding 0.20 only.
+Score decile table: distribution across V3 buckets for Credit Check vs Disbursed in the latest month — show % for each bucket as read from the file. Flag any bucket present in Credit Check but completely absent in Disbursed with a callout explaining what this signals about filtering behaviour. Add 2–3 sentences on stability trend using only data from the file.
 
-CSI & Feature Stability:
-Side-by-side CSI comparison table: Feature Name | CSI (Credit Check) | Status | CSI (Disbursed) | Status | Delta. Apply RAG status and row coloring to Disbursed CSI status only — Credit Check CSI is shown for reference and is not flagged. CSI thresholds (Disbursed only): Stable <0.1 (Green) / Marginal 0.1–0.25 (Amber) / Unstable >0.25 (Red). Call out top 3 most unstable features in latest month (by Disbursed CSI). Flag any feature Unstable for 2+ consecutive months in Disbursed as high priority. Add note if Disbursed CSI > Credit Check CSI explaining adverse selection risk.
+**CSI & Feature Stability:**
+[STRENGTHENED] Read every CSI value directly from the feature stability table in the HTML file — copy each cell value exactly as it appears. Do not compute or estimate any CSI figure.
+Side-by-side table: Feature Name | CSI (Credit Check) | CC Status | CSI (Disbursed) | Disbursed Status | Delta.
+Apply RAG status and row colouring ONLY to Disbursed CSI — Credit Check CSI column is shown for reference with no flag, no badge, no colour.
+CSI thresholds (Disbursed only): Stable <0.10 (Green) / Marginal 0.10–0.25 (Amber) / Unstable >0.25 (Red).
+Call out top 3 most unstable features in latest month ranked by Disbursed CSI value (highest first).
+Flag any feature that is Unstable in Disbursed for 2+ consecutive months as high priority (only if multi-month CSI data is present in the file).
+If Disbursed CSI > Credit Check CSI for a feature, add a note explaining adverse selection risk.
+Do not flag or comment on Credit Check CSI levels regardless of their magnitude.
 
-Disbursal & Risk Segment Analysis:
-Disbursal table: MoM — application count, amount disbursed (₹ Cr), average ticket size (₹ Lakhs), disbursal rate %. Flag any month where both volume and ticket size declined as a double-risk event.
-Risk segment side-by-side: Credit Check % vs Disbursed % vs Gap (pp) for each segment in latest month. Flag any segment present in Credit Check but entirely absent in Disbursals. Approval method conversion gap: CC % vs Disbursed % — highlight any method with large CC share but near-zero disbursals. Add 3–4 sentences on adverse selection signals.
+**Disbursal & Risk Segment Analysis:**
+Disbursal table: for each month in the file — application count, amount disbursed (₹ Cr), average ticket size (₹ Lakhs), disbursal rate %. All values read directly from the file; Avg Ticket Size and Disbursal Rate computed from raw counts/amounts. Flag any month where disbursal volume declined AND disbursal amount declined simultaneously as a double-risk event.
+Risk segment table: Credit Check % vs Disbursed % vs Gap (pp) for each segment in the latest month, read from the file. Flag any segment present in Credit Check but entirely absent in Disbursals.
+Approval method conversion table: CC % vs Disbursed % for each approval method. Highlight any method with large CC share (>20%) but near-zero Disbursed share (<5%) — describe the conversion gap only in terms of percentages and counts from the file. Do not estimate revenue impact in monetary terms unless that figure is explicitly in the file.
+Add 3–4 sentences on adverse selection signals using only file data.
 
-Early Warning Alerts:
-For each alert: metric | current value | threshold | status (Critical/Warning/OK) | recommended action.
-Alert triggers:
+**Early Warning Alerts:**
+For each breached threshold, produce one row: Metric | Current Value (from file) | Threshold (from this prompt) | Status | Recommended Action.
+Alert triggers (thresholds defined here — read current values from file, never invent threshold values):
+  - PSI (Disbursed only) >0.20 → Critical / 0.10–0.20 → Warning. Credit Check PSI excluded from all alerts.
+  - Any feature CSI (Disbursed only) >0.25 → Critical / 0.10–0.25 → Warning. Unstable Disbursed CSI for 2+ consecutive months → High Priority flag. Credit Check CSI excluded from all alerts.
+  - Disbursal Rate MoM drop >5% → Critical / >3% → Warning
+  - CA But LPS Not Done % >30% → Critical / 15–30% → Warning
+  - Rejection Rate increase >3pp MoM → Warning
+  - Approval method: CC share >20% but Disbursed share <5% → Warning
+  - Score bucket or risk segment present in Credit Check but absent in Disbursals → Warning
 
-PSI (Disbursed only) >0.20 Critical / 0.10–0.20 Warning — Credit Check PSI is excluded from alerts
-Any feature CSI (Disbursed only) >0.25 Critical / 0.10–0.25 Warning / Unstable 2+ months = high priority — Credit Check CSI is excluded from alerts
-Disbursal Rate drop >5% MoM Critical / >3% Warning
-CA But LPS Not Done % >30% Critical / 15–30% Warning
-Rejection Rate increase >3pp MoM Warning
-Approval method >20% CC share but <5% Disbursal share Warning
-Score bucket or risk segment present in CC but absent in Disbursals Warning
-If no thresholds breached, state: "No active alerts — all metrics within acceptable range."
-Summary & Actions:
-4–6 bullet findings with specific numbers from the data (e.g. "CA-LPS Not Done at 38.6% — up from 22.9% (+15.7pp MoM) — Critical threshold breach"). Then action table: Finding | Recommended Action | Owner | Priority | Timeline. Close with next review date (2 weeks from reporting month given instability level).
+If no thresholds are breached, state: "No active alerts — all metrics within acceptable range."
+
+**Summary & Actions:**
+4–6 bullet findings with specific numbers read directly from the file (e.g. "CA-LPS Not Done at 38.6% — up from 22.9% (+15.7pp MoM) — Critical threshold breach"). Do not include any estimated or extrapolated figures.
+Action table: Finding | Recommended Action | Owner | Priority | Timeline — use the standard owner/priority/timeline mapping defined in the Anti-Fabrication Rules above.
+Close with next review date computed as 2 weeks from the last day of the latest reporting month found in the data.
 
 Output a single self-contained HTML document. Rules:
 
