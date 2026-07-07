@@ -149,12 +149,9 @@ def get_analysis(conversation_id, request_id, headers, base_url):
             )
             # Guard: if the answer looks like a file artifact reference instead of
             # actual content (e.g. "final_fraud_report.html"), the Toqan model
-            # generated a downloadable file rather than returning inline content.
+            # generated a downloadable file rather than returning HTML inline.
             # Failing loudly here is better than sending a broken template email.
-            # Accepts either a self-contained HTML document or a JSON object
-            # (used by uptop_v3.py's narrative-only calls, which are short by design).
-            stripped = answer.strip().lower().lstrip()
-            if len(answer.strip()) < 500 and not stripped.startswith(("<!doctype html", "<html", "{", "<think>")):
+            if len(answer.strip()) < 500 and not answer.strip().lower().lstrip().startswith(("<!doctype html", "<html")):
                 raise RuntimeError(
                     f"Toqan returned status=finished but answer looks like a file "
                     f"reference or is too short to be a valid report "
