@@ -150,13 +150,35 @@ def get_months_from_table(parsed_table):
 # Main Extractor
 # ---------------------------------------------------------------------------
 
+_MONTH_NAMES = {
+    "01": "Jan", "02": "Feb", "03": "Mar", "04": "Apr",
+    "05": "May", "06": "Jun", "07": "Jul", "08": "Aug",
+    "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dec",
+}
+
+
 def _month_name(mm):
-    months = {
-        "01": "Jan", "02": "Feb", "03": "Mar", "04": "Apr",
-        "05": "May", "06": "Jun", "07": "Jul", "08": "Aug",
-        "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dec",
-    }
-    return months.get(mm, mm)
+    return _MONTH_NAMES.get(mm, mm)
+
+
+def _parse_report_date(digits):
+    """
+    Best-effort human-readable date from an 8-digit filename fragment.
+
+    Real filenames use DDMMYYYY (e.g. "...Mon22062026.html" -> 22 Jun 2026),
+    so that's tried first; falls back to YYYYMMDD in case a differently
+    named report is ever used. Returns the raw digits if neither
+    interpretation yields a valid month, rather than fabricating a date.
+    """
+    dd, mm, yyyy = digits[0:2], digits[2:4], digits[4:8]
+    if mm in _MONTH_NAMES:
+        return f"{dd} {_MONTH_NAMES[mm]} {yyyy}"
+
+    yyyy2, mm2, dd2 = digits[0:4], digits[4:6], digits[6:8]
+    if mm2 in _MONTH_NAMES:
+        return f"{dd2} {_MONTH_NAMES[mm2]} {yyyy2}"
+
+    return digits
 
 
 def extract_from_html(html, source_label=""):
@@ -267,8 +289,7 @@ def extract_from_html(html, source_label=""):
     report_date = ""
     date_match = re.search(r'(\d{8})', str(source_label))
     if date_match:
-        d_str = date_match.group(1)
-        report_date = f"{d_str[6:8]} {_month_name(d_str[4:6])} {d_str[:4]}"
+        report_date = _parse_report_date(date_match.group(1))
 
     # -----------------------------------------------------------------------
     # Helpers
@@ -412,6 +433,59 @@ def extract_from_html(html, source_label=""):
     }
 
     return output
+
+
+# ---------------------------------------------------------------------------
+# Prompt-injection helper — exact category labels for this file
+# ---------------------------------------------------------------------------
+
+def build_label_whitelist(data):
+    """
+    Build a plain-text block listing the exact category label strings found
+    in this specific extracted file (score buckets, risk segments, approval
+    methods, feature names, application statuses).
+
+    This is injected into the LLM prompt (replacing the {{VALID_LABELS}}
+    marker in the uptop_v3 prompt) so the model cannot substitute a
+    generic industry-standard scheme (CIBIL score bands, VL/L/M/H/VH risk
+    tiers, manual/auto/rejected approval flags) for this model's actual,
+    non-standard labels — a failure mode observed in production where the
+    LLM fell back on familiar "textbook" categories instead of reading the
+    file's real keys.
+    """
+
+    def _labels(section, field):
+        counts = data.get(section, {}).get(field, {}).get("counts", {})
+        return [k for k in counts.keys() if k != "All"]
+
+    def _union(field):
+        cc = _labels("credit_check", field)
+        dis = _labels("disbursed", field)
+        seen = []
+        for lbl in cc + dis:
+            if lbl not in seen:
+                seen.append(lbl)
+        return seen
+
+    v3_buckets = _union("v3_score_buckets")
+    risk_segments = _union("risk_segments")
+    approval_methods = _union("approval_methods")
+    application_statuses = _labels("credit_check", "application_status")
+
+    feature_names = []
+    for section in ("credit_check", "disbursed"):
+        for feat in data.get(section, {}).get("feature_csi", {}).keys():
+            if feat not in feature_names:
+                feature_names.append(feat)
+
+    lines = []
+    lines.append(f"- Application status categories: {', '.join(application_statuses)}")
+    lines.append(f"- V3 score bucket labels: {', '.join(v3_buckets)}")
+    lines.append(f"- Risk segment labels: {', '.join(risk_segments)}")
+    lines.append(f"- Approval method labels: {', '.join(approval_methods)}")
+    lines.append(f"- Feature names (for CSI table): {', '.join(feature_names)}")
+
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------

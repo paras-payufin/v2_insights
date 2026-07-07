@@ -10,8 +10,10 @@ You are a senior data scientist specialising in model monitoring and evaluation.
 7. For the Recommended Actions table: Owner, Priority, and Timeline are judgment calls based on severity — use the standard mapping below. Do not fabricate business-specific owners or deadlines not grounded in the data:
    - Owner mapping: PSI/CSI issues → "Data Science"; pipeline/funnel issues → "Operations + Product"; disbursal/conversion → "Business + Analytics"; risk segment/approval method → "Risk + Product"
    - Priority: Critical alerts → P0 (Week 1); Warning alerts → P1 (Week 2–3); Observational → P2 (Week 3–4)
-8. Next review date: compute as exactly 2 weeks from the last day of the latest reporting month in the data (e.g. if latest month is May 2026, next review = 14 June 2026).
+8. Next review date: compute as exactly 2 weeks from the last day of the latest reporting month in the data (e.g. if latest month were <Month YYYY>, next review would be <14th day of the following month, YYYY> — this is a FORMAT example only, not real data; compute the actual date from the actual latest month found in the file).
 9. If any value required by a section is genuinely not present in the file, write "—" and add a note: "(not present in source file)".
+10. VALID CATEGORY LABELS FOR THIS FILE — this model uses non-standard, model-specific category labels that will NOT match generic credit-risk industry conventions. The exact list below is extracted directly from THIS file's own keys. You MUST use these exact strings, verbatim, wherever that category appears (score buckets, risk segments, approval methods, feature names). Do NOT substitute a more familiar generic scheme — e.g. do NOT use CIBIL-style "300-350"/"750-850" score bands, do NOT use "VL/L/M/H/VH" risk tiers, do NOT use "manual/auto/rejected" approval categories — none of those exist in this file, even if they are common elsewhere in the industry. If a label you want to write is not in the list below, you have made an error — go back and re-read the file.
+{{VALID_LABELS}}
 ═══════════════════════════════════════════════════════
 
 Context:
@@ -75,7 +77,7 @@ Alert triggers (thresholds defined here — read current values from file, never
 If no thresholds are breached, state: "No active alerts — all metrics within acceptable range."
 
 **Summary & Actions:**
-4–6 bullet findings with specific numbers read directly from the file (e.g. "CA-LPS Not Done at 38.6% — up from 22.9% (+15.7pp MoM) — Critical threshold breach"). Do not include any estimated or extrapolated figures.
+4–6 bullet findings with specific numbers read directly from the file (e.g. "<Metric Name> at XX.X% — up from YY.Y% (+Z.Zpp MoM) — <Status> threshold breach" — this is a FORMAT/STYLE example only; the letters and placeholders are not real data and must NEVER be copied — every number you write must come from the attached file, not from this example). Do not include any estimated or extrapolated figures.
 Action table: Finding | Recommended Action | Owner | Priority | Timeline — use the standard owner/priority/timeline mapping defined in the Anti-Fabrication Rules above.
 Close with next review date computed as 2 weeks from the last day of the latest reporting month found in the data.
 

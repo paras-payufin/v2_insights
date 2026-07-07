@@ -29,7 +29,7 @@ from config.prompts import get_prompt_by_model_name
 from email_service.template import create_html_email, EMAIL_CONFIG
 from email_service.sender import send_email
 from utils.helpers import get_analysis, make_api_request, remove_emojis
-from utils.uptop_v3_extractor import extract_from_html
+from utils.uptop_v3_extractor import extract_from_html, build_label_whitelist
 from utils.utils import TOQAN_API_KEY, TOQAN_BASE_URL
 from email_service.error_notifier import dag_failure_callback, notify_error
 
@@ -93,13 +93,19 @@ def extract_html_to_json(file_name, html_buffer):
         html_buffer: BytesIO buffer holding the downloaded HTML bytes.
 
     Returns:
-        tuple: (json_file_name, json_buffer)
+        tuple: (json_file_name, json_buffer, label_whitelist)
+            label_whitelist is a plain-text block of the exact category
+            labels found in this file (score buckets, risk segments,
+            approval methods, feature names) — injected into the LLM
+            prompt so it cannot substitute generic industry-standard
+            categories for this model's actual, non-standard labels.
     """
     print("\n[extract_html_to_json] START")
     html_buffer.seek(0)
     html_content = html_buffer.read().decode("utf-8")
 
     data = extract_from_html(html_content, source_label=file_name)
+    label_whitelist = build_label_whitelist(data)
 
     # Compact (no indentation) — Toqan reads this as raw data, not for human
     # display, so pretty-printing only adds dead-weight tokens to the payload
@@ -111,8 +117,9 @@ def extract_html_to_json(file_name, html_buffer):
     print(f"  [extract_html_to_json] source: {file_name!r} ({html_buffer.getbuffer().nbytes:,} bytes)")
     print(f"  [extract_html_to_json] output: {json_file_name!r} ({len(json_bytes):,} bytes)")
     print(f"  [extract_html_to_json] latest_month: {data['_meta'].get('latest_month')!r}")
+    print(f"  [extract_html_to_json] label_whitelist:\n{label_whitelist}")
     print(f"[extract_html_to_json] END")
-    return json_file_name, json_buffer
+    return json_file_name, json_buffer, label_whitelist
 
 
 def upload_to_toqan(file_name, file_buffer):
@@ -132,13 +139,19 @@ def upload_to_toqan(file_name, file_buffer):
     return file_id
 
 
-def create_analysis_conversation(file_id):
-    """Create analysis conversation with Toqan; returns (conversation_id, request_id)."""
+def create_analysis_conversation(file_id, label_whitelist=None):
+    """Create analysis conversation with Toqan; returns (conversation_id, request_id).
+
+    label_whitelist: plain-text block of the exact category labels found in
+    this run's file (see build_label_whitelist) — injected into the prompt's
+    {{VALID_LABELS}} marker so the model can't fall back on generic
+    industry-standard categories instead of this file's real labels.
+    """
     print(f"\n[create_analysis_conversation] START — model={MODEL_NAME!r}")
     time.sleep(5)
 
     headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
-    prompt = get_prompt_by_model_name(MODEL_NAME)
+    prompt = get_prompt_by_model_name(MODEL_NAME, prompt_vars={"VALID_LABELS": label_whitelist})
 
     print(f"  [create_analysis_conversation] prompt length : {len(prompt)} chars")
     print(f"  [create_analysis_conversation] prompt preview: {prompt[:100]!r}")
@@ -245,9 +258,9 @@ def main():
     try:
         s3_key, file_name, _file_size = find_latest_file()
         buffer = download_file(s3_key)
-        json_file_name, json_buffer = extract_html_to_json(file_name, buffer)
+        json_file_name, json_buffer, label_whitelist = extract_html_to_json(file_name, buffer)
         file_id = upload_to_toqan(json_file_name, json_buffer)
-        conversation_id, request_id = create_analysis_conversation(file_id)
+        conversation_id, request_id = create_analysis_conversation(file_id, label_whitelist)
         analysis = wait_for_analysis(conversation_id, request_id)
         send_report_email(file_name, analysis, MODEL_NAME)
 
@@ -297,7 +310,7 @@ if _AIRFLOW_AVAILABLE:
         json_buffer = None
         try:
             buffer = download_file(s3_key)
-            json_file_name, json_buffer = extract_html_to_json(file_name, buffer)
+            json_file_name, json_buffer, label_whitelist = extract_html_to_json(file_name, buffer)
             file_id = upload_to_toqan(json_file_name, json_buffer)
         finally:
             if buffer:
@@ -305,11 +318,13 @@ if _AIRFLOW_AVAILABLE:
             if json_buffer:
                 json_buffer.close()
         ti.xcom_push(key="file_id", value=file_id)
+        ti.xcom_push(key="label_whitelist", value=label_whitelist)
 
     def _task_start_analysis(**context):
         ti      = context["ti"]
         file_id = ti.xcom_pull(task_ids="upload_file", key="file_id")
-        conv_id, request_id = create_analysis_conversation(file_id)
+        label_whitelist = ti.xcom_pull(task_ids="upload_file", key="label_whitelist")
+        conv_id, request_id = create_analysis_conversation(file_id, label_whitelist)
         ti.xcom_push(key="conversation_id", value=conv_id)
         ti.xcom_push(key="request_id", value=request_id)
 

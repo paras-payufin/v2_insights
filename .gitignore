@@ -22,3 +22,7 @@ venv/
 # OS
 .DS_Store
 *.log
+
+# Local sample reports / extracted data (may contain real business data)
+/*.html
+extracted_*.json
