@@ -101,7 +101,10 @@ def extract_html_to_json(file_name, html_buffer):
 
     data = extract_from_html(html_content, source_label=file_name)
 
-    json_bytes = json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8")
+    # Compact (no indentation) — Toqan reads this as raw data, not for human
+    # display, so pretty-printing only adds dead-weight tokens to the payload
+    # the model has to ingest before it can even start writing the report.
+    json_bytes = json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     json_file_name = f"{Path(file_name).stem}.json"
     json_buffer = BytesIO(json_bytes)
 
