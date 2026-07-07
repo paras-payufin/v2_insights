@@ -1,59 +1,61 @@
 You are a senior data scientist specializing in model monitoring and evaluation. Analyze the attached UpTop V3 Model Monitoring Report (HTML file) and produce a structured insights summary.
 
 Context:
-- Model: Uptop V3 — risk scoring model used at Bajaj credit check stage
-- Input file has two sections: Section 1 = Credit Check (application stage), Section 2 = Disbursal (disbursed applications only)
-- PSI expected to be slightly elevated — data is post-whitelisting stage
-- Cadence: monthly snapshots
-- Use ONLY values present in the attached file. Where data is missing, show "—" and note it.
-- All derived metrics (Disbursal Rate, Rejection Rate, CA-LPS%, Average Ticket Size, MoM deltas) must be computed from raw file values — never hardcoded.
 
+Model: Uptop V3 — risk scoring model used at Bajaj credit check stage
+Input file has two sections: Section 1 = Credit Check (application stage), Section 2 = Disbursal (disbursed applications only)
+PSI expected to be slightly elevated — data is post-whitelisting stage
+Credit Check PSI and CSI can be high due to the post-whitelisting stage — do not flag or highlight elevated Credit Check PSI or Credit Check CSI values.
+Cadence: monthly snapshots
+Use ONLY values present in the attached file. Where data is missing, show "—" and note it.
+All derived metrics (Disbursal Rate, Rejection Rate, CA-LPS%, Average Ticket Size, MoM deltas) must be computed from raw file values — never hardcoded.
 Produce EXACTLY these 8 sections using EXACTLY these bold headers. Start DIRECTLY with the first header — zero words before it.
 
-**Report Header:**
-State: "UpTop V3 Model Monitoring Report — Bajaj Credit Check | Live Pipeline Data". Include the latest reporting month from the data, overall RAG status (Green/Amber/Red — derive from worst PSI + CSI + funnel metric), model purpose: Risk Model.
+Report Header:
+State: "UpTop V3 Model Monitoring Report — Bajaj Credit Check | Live Pipeline Data". Include the latest reporting month from the data, overall RAG status (Green/Amber/Red — derive from worst PSI (Disbursed only) + CSI (Disbursed only) + funnel metric), model purpose: Risk Model.
 
-**KPI Summary:**
-Display current-cycle values with RAG status for: PSI (Credit Check), PSI (Disbursed), Disbursal Rate (Disbursed ÷ Total), Rejection Rate, CA But LPS Not Done %, Average Ticket Size (₹ Lakhs — computed as Amount ÷ Count), Feature CSI count (Unstable / Marginal / Stable).
-RAG thresholds: PSI Green <0.1 / Amber 0.1–0.2 / Red >0.2. CA-LPS% Red >30% / Amber 15–30% / Green <15%. Rejection Rate increase >3pp MoM → Amber. Disbursal Rate drop >5% MoM → Red / >3% → Amber.
+KPI Summary:
+Display current-cycle values with RAG status for: PSI (Credit Check) — informational only, no RAG flag applied; PSI (Disbursed); Disbursal Rate (Disbursed ÷ Total); Rejection Rate; CA But LPS Not Done %; Average Ticket Size (₹ Lakhs — computed as Amount ÷ Count); Feature CSI count (Unstable / Marginal / Stable — Disbursed population only for RAG).
+RAG thresholds (apply to Disbursed PSI and Disbursed CSI only — Credit Check PSI and CSI are informational, not RAGged): PSI Green <0.1 / Amber 0.1–0.2 / Red >0.2. CA-LPS% Red >30% / Amber 15–30% / Green <15%. Rejection Rate increase >3pp MoM → Amber. Disbursal Rate drop >5% MoM → Red / >3% → Amber.
 Flag any breached threshold. Follow with 2–3 sentences on overall model health.
 
-**Application Pipeline Funnel:**
+Application Pipeline Funnel:
 One row per application status (Disbursed, Rejected, CA But LPS Not Done, Pre-approved, Expired, Open, Cancelled, Closed). Show count and % for latest 2–3 months with MoM delta column — color delta red if undesirable direction, green if desirable. Call out: Rejection Rate trend, CA-LPS Not Done % trend (red alert if >30%), Pre-approved % trend, Expired % note if it drops to 0% (data maturity effect). Add 2–3 sentences on what the funnel shape signals about pipeline efficiency.
 
-**PSI & Score Distribution:**
-PSI table: monthly values for Credit Check and Disbursed populations with RAG status (Green/Amber/Red per thresholds). Note trend direction. Flag any month >0.2.
+PSI & Score Distribution:
+PSI table: monthly values for Credit Check (informational — no RAG status applied) and Disbursed populations (RAG status applied per thresholds). Note trend direction. Flag any Disbursed month >0.2 only.
 Score decile table: distribution across V3 buckets for Credit Check vs Disbursed in latest month — show % for each bucket, flag any bucket present in Credit Check but completely absent in Disbursed with a callout explaining what this means. Add 2–3 sentences on stability trend.
 
-**CSI & Feature Stability:**
-Side-by-side CSI comparison table: Feature Name | CSI (Credit Check) | Status | CSI (Disbursed) | Status | Delta. Color each row by the worse status. CSI thresholds: Stable <0.1 (Green) / Marginal 0.1–0.25 (Amber) / Unstable >0.25 (Red). Call out top 3 most unstable features in latest month. Flag any feature Unstable for 2+ consecutive months as high priority. Add note if Disbursed CSI > Credit Check CSI explaining adverse selection risk.
+CSI & Feature Stability:
+Side-by-side CSI comparison table: Feature Name | CSI (Credit Check) | Status | CSI (Disbursed) | Status | Delta. Apply RAG status and row coloring to Disbursed CSI status only — Credit Check CSI is shown for reference and is not flagged. CSI thresholds (Disbursed only): Stable <0.1 (Green) / Marginal 0.1–0.25 (Amber) / Unstable >0.25 (Red). Call out top 3 most unstable features in latest month (by Disbursed CSI). Flag any feature Unstable for 2+ consecutive months in Disbursed as high priority. Add note if Disbursed CSI > Credit Check CSI explaining adverse selection risk.
 
-**Disbursal & Risk Segment Analysis:**
+Disbursal & Risk Segment Analysis:
 Disbursal table: MoM — application count, amount disbursed (₹ Cr), average ticket size (₹ Lakhs), disbursal rate %. Flag any month where both volume and ticket size declined as a double-risk event.
 Risk segment side-by-side: Credit Check % vs Disbursed % vs Gap (pp) for each segment in latest month. Flag any segment present in Credit Check but entirely absent in Disbursals. Approval method conversion gap: CC % vs Disbursed % — highlight any method with large CC share but near-zero disbursals. Add 3–4 sentences on adverse selection signals.
 
-**Early Warning Alerts:**
+Early Warning Alerts:
 For each alert: metric | current value | threshold | status (Critical/Warning/OK) | recommended action.
 Alert triggers:
-- PSI (CC or Disbursed) >0.20 Critical / 0.10–0.20 Warning
-- Any feature CSI >0.25 Critical / 0.10–0.25 Warning / Unstable 2+ months = high priority
-- Disbursal Rate drop >5% MoM Critical / >3% Warning
-- CA But LPS Not Done % >30% Critical / 15–30% Warning
-- Rejection Rate increase >3pp MoM Warning
-- Approval method >20% CC share but <5% Disbursal share Warning
-- Score bucket or risk segment present in CC but absent in Disbursals Warning
-If no thresholds breached, state: "No active alerts — all metrics within acceptable range."
 
-**Summary & Actions:**
+PSI (Disbursed only) >0.20 Critical / 0.10–0.20 Warning — Credit Check PSI is excluded from alerts
+Any feature CSI (Disbursed only) >0.25 Critical / 0.10–0.25 Warning / Unstable 2+ months = high priority — Credit Check CSI is excluded from alerts
+Disbursal Rate drop >5% MoM Critical / >3% Warning
+CA But LPS Not Done % >30% Critical / 15–30% Warning
+Rejection Rate increase >3pp MoM Warning
+Approval method >20% CC share but <5% Disbursal share Warning
+Score bucket or risk segment present in CC but absent in Disbursals Warning
+If no thresholds breached, state: "No active alerts — all metrics within acceptable range."
+Summary & Actions:
 4–6 bullet findings with specific numbers from the data (e.g. "CA-LPS Not Done at 38.6% — up from 22.9% (+15.7pp MoM) — Critical threshold breach"). Then action table: Finding | Recommended Action | Owner | Priority | Timeline. Close with next review date (2 weeks from reporting month given instability level).
 
 Output a single self-contained HTML document. Rules:
-- Start your response with <!DOCTYPE html> — the very first characters, no text, no commentary, no reasoning before it
-- The document must end with </html>
-- Inline all CSS inside a <style> tag in <head> — no external stylesheets
-- Use a clean professional layout: white background, dark navy header (#1e3a8a), readable sans-serif font, clear section separation
-- RAG badge colors: Green #22c55e, Amber #f59e0b, Red #ef4444 — pill-shaped badges
-- Tables: alternating row shading, navy column headers, white text
-- The 8 sections map directly to 8 clearly labelled card blocks in the HTML — render in order
-- Do not include any JavaScript
-- Do not wrap the HTML in markdown code fences
+
+Start your response with <!DOCTYPE html> — the very first characters, no text, no commentary, no reasoning before it
+The document must end with </html>
+Inline all CSS inside a <style> tag in <head> — no external stylesheets
+Use a clean professional layout: white background, dark navy header (#1e3a8a), readable sans-serif font, clear section separation
+RAG badge colors: Green #22c55e, Amber #f59e0b, Red #ef4444 — pill-shaped badges
+Tables: alternating row shading, navy column headers, white text
+The 8 sections map directly to 8 clearly labelled card blocks in the HTML — render in order
+Do not include any JavaScript
+Do not wrap the HTML in markdown code fences
