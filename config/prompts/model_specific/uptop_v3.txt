@@ -86,9 +86,13 @@ Output a single self-contained HTML document. Rules:
 Start your response with <!DOCTYPE html> — the very first characters, no text, no commentary, no reasoning before it
 The document must end with </html>
 Inline all CSS inside a <style> tag in <head> — no external stylesheets
-Use a clean professional layout: white background, dark navy header (#1e3a8a), readable sans-serif font, clear section separation
-RAG badge colors: Green #22c55e, Amber #f59e0b, Red #ef4444 — pill-shaped badges
-Tables: alternating row shading, navy column headers, white text
-The 8 sections map directly to 8 clearly labelled card blocks in the HTML — render in order
 Do not include any JavaScript
 Do not wrap the HTML in markdown code fences
+
+Visual design — minimal, modern, professional (styling only, do not let this affect any data or numbers):
+Page background #f4f6f9; centered container max-width 1040px; font-family -apple-system, "Segoe UI", Roboto, Arial, sans-serif; base size 15px; line-height 1.6.
+Header: navy (#1e3a8a) banner, white text, generous padding (28-32px), rounded bottom corners, report title bold and larger, subtitle line smaller and lighter weight.
+The 8 sections map to 8 card blocks rendered in order — each card: white background, 12px rounded corners, subtle box-shadow (0 1px 3px rgba(0,0,0,0.08)), 24px internal padding, 20px margin between cards, section heading bold ~18px with a 4px navy left-border accent.
+Tables: rounded container, navy header row with white bold text, alternating row shading (#f8fafc / #ffffff), comfortable cell padding (10-12px), no heavy borders.
+RAG badges: pill-shaped, bold white text on solid background — Green #22c55e, Amber #f59e0b, Red #ef4444.
+Keep spacing generous and consistent; avoid visual clutter, unnecessary borders, or dense text blocks.

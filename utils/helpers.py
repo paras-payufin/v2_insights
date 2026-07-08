@@ -70,6 +70,33 @@ def make_api_request(method, url, headers, json_data=None, files=None, max_retri
     raise Exception("Max retries reached")
 
 
+def extract_html_document(text):
+    """
+    Return only the <!DOCTYPE html>...</html> document contained in `text`,
+    discarding any preamble or trailing commentary the model may have leaked
+    (e.g. "I'll now generate the HTML..." before the actual markup).
+
+    Falls back to the original text unchanged if no HTML document is found,
+    so plain-text answers (e.g. from non-HTML prompts) are left untouched.
+    """
+    lower = text.lower()
+    start_idx = None
+    for marker in ("<!doctype html", "<html"):
+        idx = lower.find(marker)
+        if idx != -1 and (start_idx is None or idx < start_idx):
+            start_idx = idx
+
+    if start_idx is None:
+        return text
+
+    end_idx = lower.rfind("</html>")
+    if end_idx == -1:
+        return text[start_idx:].strip()
+
+    end_idx += len("</html>")
+    return text[start_idx:end_idx].strip()
+
+
 def get_analysis(conversation_id, request_id, headers, base_url):
     """
     Poll GET /get_answer until status == "finished", then return the answer.

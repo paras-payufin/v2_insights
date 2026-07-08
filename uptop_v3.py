@@ -26,7 +26,7 @@ from config.settings import (
 from config.prompts import get_prompt_by_model_name
 from email_service.template import create_html_email, EMAIL_CONFIG
 from email_service.sender import send_email
-from utils.helpers import get_analysis, make_api_request, remove_emojis
+from utils.helpers import extract_html_document, get_analysis, make_api_request, remove_emojis
 from utils.utils import TOQAN_API_KEY, TOQAN_BASE_URL
 from email_service.error_notifier import dag_failure_callback, notify_error
 
@@ -152,7 +152,14 @@ def wait_for_analysis(conversation_id, request_id):
     if not analysis:
         raise RuntimeError("No analysis received from Toqan")
 
-    return analysis
+    # Strip any leaked preamble/meta-commentary before the actual HTML document
+    # (e.g. "I'll now generate the HTML...") — guardrails ask the model not to,
+    # but this is a deterministic safety net regardless of prompt compliance.
+    cleaned = extract_html_document(analysis)
+    if cleaned != analysis:
+        print(f"  [wait_for_analysis] Stripped leaked preamble/trailing text "
+              f"({len(analysis) - len(cleaned)} chars removed)")
+    return cleaned
 
 
 def _is_html_output(text):
