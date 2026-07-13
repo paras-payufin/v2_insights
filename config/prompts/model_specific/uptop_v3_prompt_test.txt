@@ -61,15 +61,49 @@ These are the only permitted thresholds for this calculation. Do not use any oth
 
 RULE A-11 — CONSECUTIVE MONTHS INSTABILITY [CRITICAL]
 When assessing "unstable for N consecutive months" for any feature:
-  STEP 1: For every month where data exists, check that month's Disbursed CSI against the 0.25 threshold independently.
-  STEP 2: A feature is "Unstable in month M" ONLY if its Disbursed CSI for month M strictly exceeds 0.25.
-          A value of 0.25 or below in any month RESETS the streak to zero.
+  STEP 1: For every month where data exists, check that month's Disbursed CSI against the 0.25
+          threshold independently.
+  STEP 2: A feature is "Unstable in month M" ONLY if its Disbursed CSI for month M strictly
+          exceeds 0.25. A value of 0.25 or below in any month RESETS the streak to zero.
   STEP 3: Count the streak from the most recent month backwards without interruption.
   STEP 4: State the streak only after checking each month. Write the actual months that were Unstable.
           Example — if values are Feb=2.83, Mar=0.17, Apr=0.39, May=0.66:
           Mar resets the streak → correct statement is "Unstable in Apr and May (2 consecutive months)"
           NOT "4 consecutive months".
   STEP 5: Multi-month High Priority flag requires 2+ confirmed consecutive months per this check.
+
+RULE A-12 — DISBURSAL RATE RAG — THRESHOLD WORKED EXAMPLE [FIX-3]
+The Disbursal Rate RAG is determined by the MoM drop in percentage points (pp), not the absolute rate.
+  Formula: MoM drop = prior month Disbursal Rate − current month Disbursal Rate
+  Thresholds:
+    Green  = MoM drop ≤ 3pp  (no threshold breached)
+    Amber  = MoM drop > 3pp  AND  ≤ 5pp
+    Red    = MoM drop > 5pp
+  Worked example: prior = 15.36%, current = 13.16%, drop = 15.36 − 13.16 = 2.20pp → GREEN (2.20 ≤ 3).
+  Common error to avoid: do not assign Amber simply because the rate is below 15% or declining —
+  the badge depends only on the size of the MoM drop against the thresholds above.
+
+RULE A-13 — RISK SEGMENT TABLE COMPLETENESS [FIX-1]
+The Risk Segment table must contain one row for every segment that appears in the Credit Check
+risk segment table in the file — no segment may be omitted.
+  STEP 1: List all segment names from the Credit Check risk segment table.
+  STEP 2: For each segment, look up its count in the Disbursed risk segment table.
+           If a segment row exists in the Disbursed table → it is PRESENT. Read its % directly.
+           If a segment row is entirely absent from the Disbursed table → it is ABSENT (0.00%).
+  STEP 3: Do not determine ABSENT/PRESENT by inference, memory, or pattern — check the
+          Disbursed table explicitly for each segment name, one at a time.
+  STEP 4: In your output row: if PRESENT, show the Disbursed % and Gap (pp).
+           If ABSENT, show "—" in the Disbursed % column and "ABSENT" as a flag.
+  STEP 5: After completing the table, list only the segments confirmed ABSENT in STEP 2.
+          Do not flag any segment as absent unless its row is genuinely missing from the
+          Disbursed table. A segment with even one disbursal is PRESENT, not absent.
+
+RULE A-14 — APPROVAL METHOD ALERT SEVERITY [FIX-2]
+When an approval method has Credit Check share > 20% AND Disbursed share < 5%:
+  → The Status in the Early Warning table MUST be "Critical" — not "Warning".
+  This is a Critical alert by definition in this prompt. Do not downgrade it to Warning.
+  Apply this regardless of whether the Disbursed share is 0%, 1%, or 4% — any value < 5%
+  combined with CC share > 20% triggers Critical.
 
 ═══════════════════════════════════════════════════════
 CONTEXT
@@ -100,7 +134,7 @@ Show current-cycle values with RAG status for each of the following:
 
   1. PSI (Credit Check)       — label "Informational", grey badge, NO RAG colour
   2. PSI (Disbursed)          — RAG badge per thresholds below
-  3. Disbursal Rate           — computed per RULE A-4(a)
+  3. Disbursal Rate           — computed per RULE A-4(a); RAG per RULE A-12 EXACTLY
   4. Rejection Rate           — computed per RULE A-4(b)
   5. CA But LPS Not Done %    — computed per RULE A-4(c)
   6. Average Ticket Size      — computed per RULE A-4(f) EXACTLY
@@ -110,12 +144,13 @@ RAG thresholds — apply ONLY to Disbursed metrics. Credit Check is NEVER RAGged
   PSI (Disbursed):  Green <0.10 | Amber 0.10–0.20 | Red >0.20
   CA-LPS%:          Red >30%    | Amber 15–30%     | Green <15%
   Rejection Rate:   Amber if MoM increase >3pp
-  Disbursal Rate:   Red if MoM drop >5pp | Amber if MoM drop >3pp
+  Disbursal Rate:   Apply RULE A-12. Green if MoM drop ≤3pp. Amber if drop >3pp and ≤5pp.
+                    Red if drop >5pp.
 
 Overall Model Health (2–3 sentences immediately below the KPI table):
   — State the overall RAG status and the primary metric driving it.
   — State the total count of Unstable Disbursed features (from RULE A-10), e.g.
-    "8 of 11 monitored features are Unstable in the disbursed population."
+    "9 of 11 monitored features are Unstable in the disbursed population."
   — Do NOT name individual features here. Do NOT reproduce the Top 3 list here.
     Refer the reader to the CSI section for feature-level detail.
 
@@ -131,7 +166,7 @@ Call out:
   — Rejection Rate trend
   — CA-LPS Not Done % trend: red alert if current value >30%
   — Pre-approved % trend
-  — If Expired % drops to 0%: note as data maturity effect (May applications still in flight),
+  — If Expired % drops to 0%: note as data maturity effect (applications still in flight),
     not a real improvement
 
 2–3 sentences on what the funnel shape signals about pipeline efficiency. Numbers from file only.
@@ -187,15 +222,23 @@ Disbursal table — for each month in the file:
   Flag any month where BOTH disbursed volume AND disbursed amount declined MoM as a
   "double-risk event".
 
-Risk segment table — latest month:
-  Columns: Segment | CC % | Disbursed % | Gap (pp)
-  Use segment labels verbatim from file. Flag any segment with CC % > 0 but Disbursed % = 0.00%.
+Risk segment table — latest month — apply RULE A-13 EXACTLY:
+  Columns: Segment | CC % | Disbursed % | Gap (pp) | Flag
+  STEP 1: List all segments from the Credit Check risk segment table (every row, none skipped).
+  STEP 2: For each segment, look up its row in the Disbursed risk segment table.
+           PRESENT = row exists in Disbursed table → read its % and compute Gap.
+           ABSENT  = row missing from Disbursed table → show "—" and flag "ABSENT".
+  STEP 3: Do not infer ABSENT from the segment name, risk level, or any pattern.
+           Check the Disbursed table explicitly, one segment at a time.
+  STEP 4: In narrative, name ONLY the segments confirmed ABSENT in STEP 2.
+           Do not name any PRESENT segment as absent, even if its Disbursed % is low.
 
 Approval method table — latest month:
   Columns: Approval Method | CC % | Disbursed % | Gap (pp)
   Use method names verbatim from file.
-  Highlight any method where CC share >20% AND Disbursed share <5% — describe the gap using
-  only percentages and counts from the file. No monetary revenue estimates unless in the file.
+  Highlight any method where CC share >20% AND Disbursed share <5% — apply RULE A-14:
+  this triggers a Critical alert. Describe the gap using only percentages and counts from the file.
+  No monetary revenue estimates unless in the file.
 
 3–4 sentences on adverse selection signals using only file data.
 
@@ -210,11 +253,12 @@ Alert triggers — current values from file, thresholds from this prompt only:
   — Disbursed CSI >0.25 → Critical | 0.10–0.25 → Warning
     If confirmed consecutive ≥2 months (per RULE A-11): add "Persistent" to the Status cell.
     Credit Check CSI: excluded from all alerts.
-  — Disbursal Rate MoM drop >5pp → Critical | >3pp → Warning
+  — Disbursal Rate MoM drop >5pp → Critical | >3pp and ≤5pp → Warning | ≤3pp → no alert
   — CA-LPS% >30% → Critical | 15–30% → Warning
   — Rejection Rate MoM increase >3pp → Warning
-  — Approval method CC share >20% and Disbursed share <5% → Critical
-  — Score bucket or risk segment present in CC but absent (0.00%) in Disbursed → Warning
+  — Approval method CC share >20% AND Disbursed share <5% → Critical (RULE A-14: must be
+    "Critical", not "Warning", even if analyst judgment suggests otherwise)
+  — Score bucket or risk segment confirmed ABSENT from Disbursed per RULE A-13 → Warning
 
 If no thresholds breached: state "No active alerts — all metrics within acceptable range."
 

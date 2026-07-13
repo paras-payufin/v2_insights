@@ -106,7 +106,7 @@ Use the exact numeric scale and unit the file uses — no unauthorised conversio
 When in doubt: copy the value exactly as it appears and note the unit from the file.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 10 — CSI COUNT MUST BE SELF-CONSISTENT [NEW]
+RULE 10 — CSI COUNT MUST BE SELF-CONSISTENT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 The Unstable / Marginal / Stable feature count that appears in the KPI Summary MUST match
 the count that can be independently verified from the CSI table. If the count stated in the
@@ -114,7 +114,7 @@ KPI Summary and the count derivable from the CSI table differ, the KPI Summary i
 correct it before output. The CSI table is the ground truth.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 11 — INSTABILITY STREAK CLAIMS MUST BE VERIFIED [NEW]
+RULE 11 — INSTABILITY STREAK CLAIMS MUST BE VERIFIED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Before writing any claim that a feature was "unstable for N consecutive months":
   1. List that feature's Disbursed CSI value for every month in the file.
@@ -124,12 +124,50 @@ Before writing any claim that a feature was "unstable for N consecutive months":
 If you cannot verify N from the file data, do not state a streak — write "—" instead.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 12 — TOP-3 CALLOUT DOES NOT DEFINE TOTAL COUNT [NEW]
+RULE 12 — TOP-3 CALLOUT DOES NOT DEFINE TOTAL COUNT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 "Top 3 most unstable features" is a narrative callout listing the 3 highest Disbursed CSI
 values. It is NOT a statement that only 3 features are unstable. The total unstable count
 comes from RULE A-10 and may be higher. Do not use the Top 3 list to infer or report the
 total count anywhere in the report.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE 13 — RISK SEGMENT ABSENT/PRESENT MUST BE VERIFIED ROW BY ROW [FIX-1]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before labelling any risk segment as ABSENT in the Disbursed population:
+  1. Locate the Disbursed risk segment table in the file.
+  2. Search that table for the segment name exactly as it appears in the CC table.
+  3. If the segment name is found in the Disbursed table (regardless of its count or %),
+     it is PRESENT — do not label it ABSENT.
+  4. Only label a segment ABSENT if its name does not appear anywhere in the Disbursed table.
+  5. After completing the full table, review your ABSENT flags:
+     — Count how many segments you have flagged ABSENT.
+     — Verify each one by re-checking the Disbursed table. If you find the segment there,
+       correct the flag to PRESENT before output.
+  Common error to avoid: do not confuse similarly-named segments (e.g. Shallow_03 vs Shallow_04).
+  Each segment name must be checked independently and exactly.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE 14 — RAG BADGE IS DETERMINED BY THRESHOLD, NOT DIRECTION [FIX-3]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A RAG badge is assigned only by comparing the computed value against the exact numeric
+thresholds stated in the prompt. Direction of change (up or down) is not itself a trigger.
+  — For Disbursal Rate: the badge depends on the SIZE of the MoM drop in pp, not the direction.
+    If the MoM drop is ≤3pp, the badge is Green even if the rate declined.
+    Do not assign Amber or Red to a metric that has not breached its numeric threshold.
+  — Apply the same logic to every other RAG metric: only assign Amber or Red when the
+    threshold stated in the prompt is numerically exceeded.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE 15 — ALERT SEVERITY IS NON-NEGOTIABLE [FIX-2]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The Status column in the Early Warning table must exactly match the severity level defined
+in the prompt's alert triggers. Do not substitute "Warning" for "Critical" or vice versa
+based on analyst judgment, contextual reasoning, or the magnitude of the breach.
+  — If the prompt defines a condition as "Critical", the Status cell must read "Critical".
+  — If the prompt defines a condition as "Warning", the Status cell must read "Warning".
+  — Approval method with CC share >20% and Disbursed share <5% is defined as Critical.
+    Write "Critical" — not "Warning", not "High Warning", not "Critical Warning".
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Core principle: Read raw values unchanged. Compute freely only on top of them. Never invent.
