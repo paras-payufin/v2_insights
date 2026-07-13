@@ -7,23 +7,24 @@ PROMPTS_DIR = Path(__file__).parent / "prompts"
 def _load_prompt_file(filepath):
     return filepath.read_text(encoding="utf-8").strip()
 
-def get_analysis_prompt(club, model_type, model_specific, monitoring_approach):
+def get_analysis_prompt(
+    club, model_type, model_specific, monitoring_approach, guardrails_file="guardrails"
+):
     club = club.upper()
     model_type = model_type.lower().replace(" ", "_")
     monitoring_approach = monitoring_approach.lower().replace(" ", "_")
 
     model_specific_p = _load_prompt_file(PROMPTS_DIR / "model_specific" / f"{model_specific}.txt")
+    guardrails = _load_prompt_file(PROMPTS_DIR / "_base" / f"{guardrails_file}.txt")
 
     # If the model-specific file is a complete self-contained prompt (starts with
     # a role definition), return it directly. Assembling it with the stub files
     # (guardrails, club context, model_type, monitoring) adds noise and causes
     # the model to echo the instruction fragments rather than produce analysis.
     if model_specific_p.lower().lstrip('*# \n').startswith(("you are", "role:")):
-        guardrails = _load_prompt_file(PROMPTS_DIR / "_base" / "guardrails.txt")
         return f"{guardrails}\n\n{model_specific_p}"
 
     # Legacy assembly path — used for models that rely on the stub files.
-    guardrails = _load_prompt_file(PROMPTS_DIR / "_base" / "guardrails.txt")
     club_gen = _load_prompt_file(PROMPTS_DIR / "_base" / f"{club.lower()}_generic.txt")
     model_type_p = _load_prompt_file(PROMPTS_DIR / "model_types" / f"{model_type}.txt")
     monitoring_p = _load_prompt_file(PROMPTS_DIR / "monitoring_approaches" / f"{monitoring_approach}.txt")
@@ -36,7 +37,8 @@ MODEL_REGISTRY = {
         'club': 'CL',
         'type': 'risk_model',
         'monitoring': 'risk_model',
-        'model_specific': 'uptop_v3'
+        'model_specific': 'uptop_v3_prompt_test',
+        'guardrails': 'guardrails_uptop_v3',
     },
     'uptop_v3_with_ri': {
         'club': 'CL',
@@ -132,7 +134,13 @@ def get_prompt_by_model_name(model_name):
     if name not in MODEL_REGISTRY:
         raise ValueError(f"Model {model_name} not found")
     c = MODEL_REGISTRY[name]
-    prompt = get_analysis_prompt(c["club"], c["type"], c["model_specific"], c["monitoring"])
+    prompt = get_analysis_prompt(
+        c["club"],
+        c["type"],
+        c["model_specific"],
+        c["monitoring"],
+        guardrails_file=c.get("guardrails", "guardrails"),
+    )
     print(f"  [prompt] {model_name}: {len(prompt)} chars | "
           f"first 80: {prompt[:80]!r}")
     return prompt

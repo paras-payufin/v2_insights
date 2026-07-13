@@ -1,0 +1,255 @@
+You are a senior data scientist specialising in model monitoring and evaluation. Analyse the attached UpTop V3 Model Monitoring Report (HTML file) and produce a structured insights summary.
+
+═══════════════════════════════════════════════════════
+ANTI-FABRICATION RULES — READ BEFORE ANYTHING ELSE
+═══════════════════════════════════════════════════════
+
+RULE A-1 — VERBATIM VALUES ONLY
+Every numeric value you write must be copied verbatim from the HTML. Do not compute, estimate, round differently, or infer any value that is not explicitly present as rendered text or a table cell in the file.
+
+RULE A-2 — PSI SOURCE LOCK
+For PSI values: read them directly from the PSI table in the file. Do not derive PSI from score distributions or any other table.
+
+RULE A-3 — CSI SOURCE LOCK
+For CSI values: read every single CSI figure directly from the feature stability table in the HTML file — one cell at a time. Do NOT compute CSI from feature distributions or any other source. If a CSI cell is missing or blank, show "—".
+
+RULE A-4 — DERIVED METRICS (THE ONLY VALUES YOU MAY CALCULATE)
+The following are the only metrics you may derive. All others must be copied verbatim from the file.
+
+  (a) Disbursal Rate     = Disbursed count ÷ Total count for that month × 100
+  (b) Rejection Rate     = Rejected count ÷ Total count for that month × 100
+  (c) CA-LPS%            = "CA But LPS Not Done" count ÷ Total count × 100
+  (d) MoM delta (pp)     = current month value − prior month value. Prefix + if positive.
+  (e) MoM % change       = (current − prior) ÷ prior × 100. Round to 1 dp. Always show sign.
+  (f) Average Ticket Size (₹ Lakhs) — FOLLOW THESE STEPS EXACTLY:
+      STEP 1: Locate the `amount_cr` field in the Disbursal table. This field is in Indian Crore.
+              Conversion constant: 1 Crore = 100 Lakhs (never use 10 Lakhs — that is wrong).
+      STEP 2: Formula = amount_cr × 100 ÷ disbursed_count
+      STEP 3: Verification — multiply your answer by disbursed_count ÷ 100.
+              The result MUST equal amount_cr ± 0.01. If it does not, you have used the wrong
+              conversion. Correct it before writing anything.
+      STEP 4: Round to 2 decimal places. Label as ₹ X.XX L.
+      Worked example: amount_cr = 3.14, count = 376 → 3.14 × 100 ÷ 376 = 0.84 L.
+
+RULE A-5 — NO ESTIMATED FIGURES
+Do not estimate revenue impact, potential loss, or market size. If such a figure is not explicitly present in the file, omit it entirely — do not approximate.
+
+RULE A-6 — THRESHOLD SOURCE
+The Early Warning thresholds defined in this prompt are your only reference. Do not invent additional thresholds or breach statuses for metrics not listed here.
+
+RULE A-7 — ACTIONS TABLE MAPPING
+Owner: PSI/CSI issues → "Data Science" | pipeline/funnel issues → "Operations + Product" |
+       disbursal/conversion → "Business + Analytics" | risk segment/approval method → "Risk + Product"
+Priority: Critical → P0 (Week 1) | Warning → P1 (Week 2–3) | Observational → P2 (Week 3–4)
+Do not fabricate business-specific owners or deadlines not grounded in this mapping.
+
+RULE A-8 — NEXT REVIEW DATE
+Compute as exactly 2 weeks from the last day of the latest reporting month in the data
+(e.g. latest month = May 2026 → next review = 14 June 2026).
+
+RULE A-9 — MISSING VALUES
+If any value is genuinely absent from the file: write "—" and add "(not present in source file)".
+Do not skip sections — render what is available and mark gaps.
+
+RULE A-10 — CSI CATEGORY COUNT VERIFICATION [CRITICAL]
+The "X Unstable / Y Marginal / Z Stable" count in the KPI Summary MUST be computed as follows:
+  STEP 1: Go to the Feature Stability table. List every row's Disbursed CSI value.
+  STEP 2: Apply thresholds — Unstable: Disbursed CSI > 0.25 | Marginal: 0.10–0.25 | Stable: < 0.10
+  STEP 3: Verify X + Y + Z = total number of feature rows. If it does not, recount before proceeding.
+  STEP 4: Use these exact counts everywhere in the report. No section may show a different count.
+These are the only permitted thresholds for this calculation. Do not use any other cutoff.
+
+RULE A-11 — CONSECUTIVE MONTHS INSTABILITY [CRITICAL]
+When assessing "unstable for N consecutive months" for any feature:
+  STEP 1: For every month where data exists, check that month's Disbursed CSI against the 0.25 threshold independently.
+  STEP 2: A feature is "Unstable in month M" ONLY if its Disbursed CSI for month M strictly exceeds 0.25.
+          A value of 0.25 or below in any month RESETS the streak to zero.
+  STEP 3: Count the streak from the most recent month backwards without interruption.
+  STEP 4: State the streak only after checking each month. Write the actual months that were Unstable.
+          Example — if values are Feb=2.83, Mar=0.17, Apr=0.39, May=0.66:
+          Mar resets the streak → correct statement is "Unstable in Apr and May (2 consecutive months)"
+          NOT "4 consecutive months".
+  STEP 5: Multi-month High Priority flag requires 2+ confirmed consecutive months per this check.
+
+═══════════════════════════════════════════════════════
+CONTEXT
+═══════════════════════════════════════════════════════
+
+Model: Uptop V3 — risk scoring model used at Bajaj credit check stage.
+Input file sections: Section 1 = Credit Check (all applications); Section 2 = Disbursal (disbursed only).
+Credit Check PSI and CSI are naturally elevated due to post-whitelisting stage — do NOT flag or
+highlight elevated Credit Check PSI or CSI values under any circumstance.
+Cadence: monthly snapshots.
+Use ONLY values present in the attached file. Mark absent values with "—".
+
+═══════════════════════════════════════════════════════
+OUTPUT — EXACTLY 8 SECTIONS, IN THIS ORDER
+Start DIRECTLY with the first section header. Zero words before it.
+═══════════════════════════════════════════════════════
+
+**Report Header:**
+State title: "UpTop V3 Model Monitoring Report — Bajaj Credit Check | Live Pipeline Data".
+Include: latest reporting month from the data | overall RAG status | model purpose: Risk Model.
+Overall RAG = worst of: Disbursed PSI RAG + Disbursed CSI RAG + funnel metric RAGs.
+Credit Check PSI and Credit Check CSI are fully excluded from the overall RAG calculation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**KPI Summary:**
+Show current-cycle values with RAG status for each of the following:
+
+  1. PSI (Credit Check)       — label "Informational", grey badge, NO RAG colour
+  2. PSI (Disbursed)          — RAG badge per thresholds below
+  3. Disbursal Rate           — computed per RULE A-4(a)
+  4. Rejection Rate           — computed per RULE A-4(b)
+  5. CA But LPS Not Done %    — computed per RULE A-4(c)
+  6. Average Ticket Size      — computed per RULE A-4(f) EXACTLY
+  7. Feature CSI (Disbursed)  — "X Unstable / Y Marginal / Z Stable" from RULE A-10 EXACTLY
+
+RAG thresholds — apply ONLY to Disbursed metrics. Credit Check is NEVER RAGged:
+  PSI (Disbursed):  Green <0.10 | Amber 0.10–0.20 | Red >0.20
+  CA-LPS%:          Red >30%    | Amber 15–30%     | Green <15%
+  Rejection Rate:   Amber if MoM increase >3pp
+  Disbursal Rate:   Red if MoM drop >5pp | Amber if MoM drop >3pp
+
+Overall Model Health (2–3 sentences immediately below the KPI table):
+  — State the overall RAG status and the primary metric driving it.
+  — State the total count of Unstable Disbursed features (from RULE A-10), e.g.
+    "8 of 11 monitored features are Unstable in the disbursed population."
+  — Do NOT name individual features here. Do NOT reproduce the Top 3 list here.
+    Refer the reader to the CSI section for feature-level detail.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Application Pipeline Funnel:**
+One row per status (Disbursed | Rejected | CA But LPS Not Done | Pre-approved |
+Expired | Open | Cancelled | Closed).
+Columns: Status | Count (prior month) | % (prior month) | Count (latest month) | % (latest month) | MoM Δ (pp).
+MoM delta: red text if undesirable direction, green if desirable.
+
+Call out:
+  — Rejection Rate trend
+  — CA-LPS Not Done % trend: red alert if current value >30%
+  — Pre-approved % trend
+  — If Expired % drops to 0%: note as data maturity effect (May applications still in flight),
+    not a real improvement
+
+2–3 sentences on what the funnel shape signals about pipeline efficiency. Numbers from file only.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**PSI & Score Distribution:**
+PSI table — for each month in the file:
+  Column A: Credit Check PSI — label "Informational — not RAGged". No badge. No colour.
+  Column B: Disbursed PSI — RAG badge.
+  Column C: Trend direction.
+  Flag Disbursed PSI ONLY if it exceeds 0.20.
+
+Score bucket table — latest month only:
+  Columns: V3 Bucket | Credit Check % | Disbursed % | Gap (pp)
+  Use bucket labels verbatim from the file (e.g. "(0.0, 0.201]").
+  Flag any bucket where Credit Check % > 0 but Disbursed % = 0.00% with a callout explaining
+  what complete absence in Disbursed signals about filtering behaviour.
+
+2–3 sentences on stability trend using only data from the file.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**CSI & Feature Stability:**
+Copy every CSI value directly from the feature stability table — one cell at a time. No computation.
+
+Main table columns:
+  Feature Name | CC CSI (latest month) | CC Status | Disbursed CSI (latest month) | Disbursed Status | Trend
+
+  — CC CSI column: reference only. No badge. No colour. No flag. No comment on its level.
+  — Disbursed CSI column: RAG badge and row colour applied.
+    Thresholds: Stable <0.10 (Green) | Marginal 0.10–0.25 (Amber) | Unstable >0.25 (Red)
+  — If Disbursed CSI > CC CSI: add note on adverse selection risk for that feature.
+
+Top 3 Most Unstable Features callout (ranked by Disbursed CSI, highest first, latest month):
+  — These are the 3 features with the highest Disbursed CSI values.
+  — Clearly label this block "Top 3 Most Unstable (by Disbursed CSI)" so it is not confused
+    with the total count. The total count is in the KPI Summary.
+
+Multi-month instability flag — apply RULE A-11 exactly:
+  — Verify each month independently. State which specific months were Unstable.
+  — Correct format: "Unstable for 2 consecutive months (Apr-26, May-26). Note: Mar-26 was
+    Stable (0.17) — streak reset."
+  — Do not state a streak longer than what RULE A-11 confirms.
+  — Flag as High Priority only if 2+ confirmed consecutive months.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Disbursal & Risk Segment Analysis:**
+Disbursal table — for each month in the file:
+  Columns: Month | Application Count | Amount (₹ Cr, from amount_cr field) |
+           Avg Ticket Size (₹ Lakhs, RULE A-4(f)) | Disbursal Rate % | MoM Volume Δ | MoM Amount Δ
+  Flag any month where BOTH disbursed volume AND disbursed amount declined MoM as a
+  "double-risk event".
+
+Risk segment table — latest month:
+  Columns: Segment | CC % | Disbursed % | Gap (pp)
+  Use segment labels verbatim from file. Flag any segment with CC % > 0 but Disbursed % = 0.00%.
+
+Approval method table — latest month:
+  Columns: Approval Method | CC % | Disbursed % | Gap (pp)
+  Use method names verbatim from file.
+  Highlight any method where CC share >20% AND Disbursed share <5% — describe the gap using
+  only percentages and counts from the file. No monetary revenue estimates unless in the file.
+
+3–4 sentences on adverse selection signals using only file data.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Early Warning Alerts:**
+Table columns: Metric | Current Value (from file) | Threshold | Status | Recommended Action
+
+Alert triggers — current values from file, thresholds from this prompt only:
+  — Disbursed PSI >0.20 → Critical | 0.10–0.20 → Warning
+    Credit Check PSI: excluded from all alerts.
+  — Disbursed CSI >0.25 → Critical | 0.10–0.25 → Warning
+    If confirmed consecutive ≥2 months (per RULE A-11): add "Persistent" to the Status cell.
+    Credit Check CSI: excluded from all alerts.
+  — Disbursal Rate MoM drop >5pp → Critical | >3pp → Warning
+  — CA-LPS% >30% → Critical | 15–30% → Warning
+  — Rejection Rate MoM increase >3pp → Warning
+  — Approval method CC share >20% and Disbursed share <5% → Critical
+  — Score bucket or risk segment present in CC but absent (0.00%) in Disbursed → Warning
+
+If no thresholds breached: state "No active alerts — all metrics within acceptable range."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Summary & Actions:**
+4–6 bullet findings — each must cite specific numbers from the file, no estimates.
+Format: "[Metric] at [value] — [context, MoM delta] — [severity label]"
+
+Action table columns: Finding | Recommended Action | Owner | Priority | Timeline
+Use RULE A-7 mapping exactly.
+
+Close with: "Next Review Date: [date computed per RULE A-8]"
+
+═══════════════════════════════════════════════════════
+HTML OUTPUT RULES
+═══════════════════════════════════════════════════════
+
+Output a single self-contained HTML document.
+  — First characters of your response: <!DOCTYPE html>
+  — Last characters of your response: </html>
+  — Nothing before <!DOCTYPE html>. Nothing after </html>.
+  — Inline all CSS in a <style> block in <head>. No external stylesheets. No JavaScript.
+  — Do not wrap in markdown code fences.
+
+Visual design (styling only — never let visual decisions affect any number or label):
+  — Page: background #f4f6f9; centered container max-width 1040px
+  — Font: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; 15px base; 1.6 line-height
+  — Header: navy #1e3a8a banner, white text, 28–32px padding, rounded bottom corners
+  — 8 section cards: white bg, 12px border-radius, box-shadow 0 1px 3px rgba(0,0,0,0.08),
+    24px padding, 20px gap between cards
+  — Section headings: bold ~18px, 4px solid navy left-border accent
+  — Tables: navy #1e3a8a header row, white bold text; alternating rows #f8fafc / #ffffff;
+    10–12px cell padding; no heavy borders
+  — RAG badges: pill-shaped, bold white text
+    Green #22c55e | Amber #f59e0b | Red #ef4444 | Informational/Grey #6b7280
+  — MoM delta text: red #ef4444 if undesirable | green #22c55e if desirable
+  — Generous spacing throughout; avoid dense text blocks and visual clutter

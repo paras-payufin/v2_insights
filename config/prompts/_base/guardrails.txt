@@ -40,4 +40,6 @@ Your reply text IS the deliverable — write the complete content directly into 
 If the deliverable is HTML, the raw HTML source code must appear in full in your response,
 starting with <!DOCTYPE html> and ending with </html>, with nothing else before or after it.
 
+
+
 Core principle: Read raw values unchanged. Compute freely on top of them. Never invent.
