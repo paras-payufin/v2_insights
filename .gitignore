@@ -26,3 +26,5 @@ venv/
 # Local sample reports / extracted data (may contain real business data)
 /*.html
 extracted_*.json
+data/uptop-v3-mmr/*
+!data/uptop-v3-mmr/.gitkeep

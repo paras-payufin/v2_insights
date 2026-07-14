@@ -2,6 +2,9 @@
 """
 Toqan UpTop V3 monitoring insights — Apache Airflow DAG + pipeline helpers.
 
+Flow:
+  S3 HTML → extract raw tables → MMR calculate → attach JSON to Toqan → email HTML report
+
 Deploy: put this file (or repo) on Airflow's DAG path / PYTHONPATH. Ensure
 `.env` is visible to `utils.utils` (repo root as cwd or symlink .env).
 
@@ -11,17 +14,20 @@ locally without installing apache-airflow.
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import json
 import time
 from datetime import datetime, timedelta
 from io import BytesIO
+from pathlib import Path
 
 import boto3
 
 from config.settings import (
     RECIPIENT_EMAIL_UPTOP_V3,
     S3_BUCKET,
-    S3_FOLDER_BAJAJ,
+    S3_FOLDER_UPTOP,
     SUPPORTED_EXTENSIONS,
+    UPTOP_V3_MMR_DATA_DIR,
 )
 from config.prompts import get_prompt_by_model_name
 from email_service.template import create_html_email, EMAIL_CONFIG
@@ -29,6 +35,8 @@ from email_service.sender import send_email
 from utils.helpers import extract_html_document, get_analysis, make_api_request, remove_emojis
 from utils.utils import TOQAN_API_KEY, TOQAN_BASE_URL
 from email_service.error_notifier import dag_failure_callback, notify_error
+from uptop_v3_mmr.extractor import extract_raw_from_html
+from uptop_v3_mmr.mmr_calculator import calculate_all
 
 MODEL_NAME = "uptop_v3"
 
@@ -39,14 +47,14 @@ MODEL_NAME = "uptop_v3"
 
 def find_latest_file():
     """
-    Find latest file in S3 bucket.
+    Find latest HTML/report file in S3 bucket.
 
     Returns:
         tuple: (s3_key, file_name, file_size)  # file_size in MB
     """
-    print(f"\n📂 Finding latest file in s3://{S3_BUCKET}/{S3_FOLDER_BAJAJ}")
+    print(f"\n📂 Finding latest file in s3://{S3_BUCKET}/{S3_FOLDER_UPTOP}")
     s3 = boto3.client("s3")
-    response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_FOLDER_BAJAJ)
+    response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=S3_FOLDER_UPTOP)
 
     files = [
         obj
@@ -77,13 +85,57 @@ def download_file(s3_key):
     return buffer
 
 
-def upload_to_toqan(file_name, file_buffer):
+def build_mmr_json(html_buffer, source_name):
+    """
+    HTML buffer → raw table JSON → mmr_calculated.json payload.
+
+    Returns:
+        tuple: (json_bytes: BytesIO, json_file_name: str, mmr: dict)
+    """
+    print("\n🧮 Extracting HTML → raw JSON → MMR calculations...")
+    html_bytes = html_buffer.getvalue() if hasattr(html_buffer, "getvalue") else html_buffer.read()
+    if isinstance(html_bytes, BytesIO):
+        html_bytes = html_bytes.getvalue()
+
+    raw = extract_raw_from_html(html_bytes, source_name=source_name)
+    mmr = calculate_all(raw)
+
+    # Persist locally for debugging / audit (best-effort)
+    try:
+        data_dir = Path(UPTOP_V3_MMR_DATA_DIR)
+        data_dir.mkdir(parents=True, exist_ok=True)
+        (data_dir / "extracted_data.json").write_text(
+            json.dumps(raw, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        (data_dir / "mmr_calculated.json").write_text(
+            json.dumps(mmr, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        print(f"  [mmr] wrote artifacts under {data_dir}")
+    except OSError as exc:
+        print(f"  [mmr] warning: could not write local artifacts: {exc}")
+
+    json_bytes = json.dumps(mmr, indent=2, ensure_ascii=False).encode("utf-8")
+    json_buffer = BytesIO(json_bytes)
+    json_buffer.seek(0)
+
+    stem = Path(source_name).stem if source_name else "uptop_v3"
+    json_file_name = f"{stem}_mmr_calculated.json"
+
+    print(
+        f"✓ MMR ready — overall_rag={mmr.get('overall_rag')!r} "
+        f"alerts={len(mmr.get('alerts') or [])} "
+        f"size={len(json_bytes)} bytes"
+    )
+    return json_buffer, json_file_name, mmr
+
+
+def upload_to_toqan(file_name, file_buffer, content_type="application/octet-stream"):
     """Upload file to Toqan API; returns file_id."""
     print("\n☁️  Uploading to Toqan...")
     time.sleep(3)
 
     headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
-    files_payload = {"file": (file_name, file_buffer, "application/octet-stream")}
+    files_payload = {"file": (file_name, file_buffer, content_type)}
 
     upload_response = make_api_request(
         "PUT", f"{TOQAN_BASE_URL}/upload_file", headers, files=files_payload
@@ -153,8 +205,6 @@ def wait_for_analysis(conversation_id, request_id):
         raise RuntimeError("No analysis received from Toqan")
 
     # Strip any leaked preamble/meta-commentary before the actual HTML document
-    # (e.g. "I'll now generate the HTML...") — guardrails ask the model not to,
-    # but this is a deterministic safety net regardless of prompt compliance.
     cleaned = extract_html_document(analysis)
     if cleaned != analysis:
         print(f"  [wait_for_analysis] Stripped leaked preamble/trailing text "
@@ -209,11 +259,15 @@ def main():
     print("🚀 TOQAN UPTOP V3 PIPELINE - LOCAL EXECUTION")
     print("=" * 80)
 
-    buffer = None
+    html_buffer = None
+    json_buffer = None
     try:
         s3_key, file_name, _file_size = find_latest_file()
-        buffer = download_file(s3_key)
-        file_id = upload_to_toqan(file_name, buffer)
+        html_buffer = download_file(s3_key)
+        json_buffer, json_file_name, _mmr = build_mmr_json(html_buffer, file_name)
+        file_id = upload_to_toqan(
+            json_file_name, json_buffer, content_type="application/json"
+        )
         conversation_id, request_id = create_analysis_conversation(file_id)
         analysis = wait_for_analysis(conversation_id, request_id)
         send_report_email(file_name, analysis, MODEL_NAME)
@@ -226,8 +280,10 @@ def main():
         notify_error(e, source="main() — uptop_v3 local CLI run")
         raise
     finally:
-        if buffer:
-            buffer.close()
+        if html_buffer:
+            html_buffer.close()
+        if json_buffer:
+            json_buffer.close()
 
 
 # ============================================================================
@@ -254,22 +310,31 @@ if _AIRFLOW_AVAILABLE:
         context["ti"].xcom_push(key="file_name",    value=file_name)
         context["ti"].xcom_push(key="file_size_mb", value=round(file_size, 4))
 
-    def _task_upload_file(**context):
+    def _task_extract_and_upload(**context):
+        """Download HTML from S3, build MMR JSON, upload JSON to Toqan."""
         ti        = context["ti"]
         s3_key    = ti.xcom_pull(task_ids="find_latest", key="s3_key")
         file_name = ti.xcom_pull(task_ids="find_latest", key="file_name")
-        buffer    = None
+        html_buffer = None
+        json_buffer = None
         try:
-            buffer  = download_file(s3_key)
-            file_id = upload_to_toqan(file_name, buffer)
+            html_buffer = download_file(s3_key)
+            json_buffer, json_file_name, mmr = build_mmr_json(html_buffer, file_name)
+            file_id = upload_to_toqan(
+                json_file_name, json_buffer, content_type="application/json"
+            )
         finally:
-            if buffer:
-                buffer.close()
+            if html_buffer:
+                html_buffer.close()
+            if json_buffer:
+                json_buffer.close()
         ti.xcom_push(key="file_id", value=file_id)
+        ti.xcom_push(key="json_file_name", value=json_file_name)
+        ti.xcom_push(key="overall_rag", value=mmr.get("overall_rag"))
 
     def _task_start_analysis(**context):
         ti      = context["ti"]
-        file_id = ti.xcom_pull(task_ids="upload_file", key="file_id")
+        file_id = ti.xcom_pull(task_ids="extract_calculate_upload", key="file_id")
         conv_id, request_id = create_analysis_conversation(file_id)
         ti.xcom_push(key="conversation_id", value=conv_id)
         ti.xcom_push(key="request_id", value=request_id)
@@ -294,7 +359,7 @@ if _AIRFLOW_AVAILABLE:
     with DAG(
         dag_id="uptop_v3_insights",
         default_args=DAG_DEFAULT_ARGS,
-        description="S3 → Toqan analysis → email (UpTop V3 model monitoring)",
+        description="S3 HTML → MMR JSON → Toqan HTML report → email (UpTop V3)",
         schedule_interval="0 9 * * 0",  # Every Sunday at 09:00 AM
         start_date=days_ago(1),
         catchup=False,
@@ -307,9 +372,9 @@ if _AIRFLOW_AVAILABLE:
             python_callable=_task_find_latest,
         )
 
-        t2_upload_file = PythonOperator(
-            task_id="upload_file",
-            python_callable=_task_upload_file,
+        t2_extract_upload = PythonOperator(
+            task_id="extract_calculate_upload",
+            python_callable=_task_extract_and_upload,
         )
 
         t3_start_analysis = PythonOperator(
@@ -322,7 +387,7 @@ if _AIRFLOW_AVAILABLE:
             python_callable=_task_fetch_and_email,
         )
 
-        t1_find_latest >> t2_upload_file >> t3_start_analysis >> t4_fetch_and_email
+        t1_find_latest >> t2_extract_upload >> t3_start_analysis >> t4_fetch_and_email
 
 
 # ============================================================================

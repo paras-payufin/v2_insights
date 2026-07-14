@@ -9,15 +9,13 @@ Never start with: "Let me", "I will", "Sure", "Certainly", "Here is", "Based on"
 any step announcement, task restatement, or planning language.
 
 RULE 3 — SOURCE OF TRUTH
-Read all values exactly as they appear — same numbers, labels, decimal places.
-Never round, adjust, reformat, invent, or estimate raw file values.
-Anomalous values: display as-is, add "(verify source data)".
-Derived metrics: compute from raw counts.
-MoM delta: subtract UNROUNDED rates; round only the final delta.
-Avg Ticket: 1 Crore = 100 Lakhs. No other conversion.
+The attached mmr_calculated.json is the sole source of truth.
+Use values exactly as they appear — same numbers, labels, decimal places, RAG badges.
+Never recompute rates, CSI classifications, RAG badges, alert thresholds, or next_review_date.
+Never invent, estimate, or adjust numeric values.
 
 RULE 4 — MISSING DATA
-Absent value → "—". Never estimate, fill, skip, or carry forward.
+Absent / null value → "—". Never estimate, fill, skip, or carry forward.
 
 RULE 5 — SECTION COMPLIANCE
 Render all 9 sections in exact order with exact headings.
@@ -25,18 +23,19 @@ No merging, skipping, renaming, or adding sections.
 No disclaimers, AI notices, appendices, or placeholders.
 
 RULE 6 — EXACT LABELS ONLY
-Use only verbatim file labels for all segment, feature, approval method,
+Use only verbatim JSON labels for all segment, feature, approval method,
 score bucket, and status names.
 ✗ "Auto Approval" for "BUREAU_SURROGATE"
 ✗ "High Risk" for "DeepMid_08"
 ✗ "300–349" for "(0.0, 0.201]"
 
-RULE 7 — VERIFY BEFORE COMPUTING
-Confirm numerator and denominator from the same table before any rate computation.
-Never hardcode a rate. Ambiguous denominator → "—".
+RULE 7 — NO RECOMPUTATION
+Do not derive rates from counts. Do not reclassify CSI. Do not re-rank top 3.
+Do not rebuild the alerts list. Render what the JSON already contains.
 
-RULE 8 — NO CROSS-TABLE VALUE MIGRATION
-PSI → PSI table only. CSI → CSI table only. Funnel → pipeline table. Amounts → disbursal table.
+RULE 8 — NO CROSS-FIELD VALUE MIGRATION
+PSI → kpis / psi_history only. CSI → features / feature_csi_summary only.
+Funnel → pipeline_funnel. Amounts → disbursal_trend.
 
 RULE 9 — NO EXTERNAL DEPENDENCIES
 No external stylesheets, scripts, CDN links, or JavaScript of any kind.
@@ -48,47 +47,36 @@ Report fills full browser viewport. No max-width below 1400px. No narrow centere
 Use 32px side padding. All tables: width 100%.
 KPI cards: full-width CSS Grid. Multi-column sections: CSS Grid with fr units.
 
-RULE 11 — PRE-STEPS ARE AUTHORITATIVE
-All PRE-STEP 1–5 values are authoritative. If any section would contradict a
-PRE-STEP result, the PRE-STEP wins. Correct before writing.
+RULE 11 — JSON VALUES ARE AUTHORITATIVE
+If any narrative would contradict a JSON field (kpis, overall_rag, alerts, top_3),
+the JSON wins. Correct before writing.
 
-RULE 12 — CSI THRESHOLD: STRICTLY 0.25
-> 0.25 → Unstable (Red) | 0.10–0.25 → Marginal (Amber) | < 0.10 → Stable (Green)
-Values above 0.25 are NEVER Marginal.
-Self-check: count rows labelled Unstable — must equal U from PRE-STEP 3.
+RULE 12 — CSI STATUS FROM JSON
+Use features[].disbursed_status_latest and kpis.feature_csi_summary counts as-is.
+Self-check: count of Unstable rows in the CSI table must equal feature_csi_summary.unstable.
 
-RULE 13 — REJECTION RATE BADGE
-Amber ONLY if MoM rate increased > 3pp.
-Any decrease or increase ≤ 3pp → Green.
-Never Amber/Red due to absolute rate level.
+RULE 13 — REJECTION / FUNNEL RAG FROM JSON
+Use kpis.rejection_rate.rag and related funnel RAGs exactly. Do not re-badge.
 
-RULE 14 — AVG TICKET SANITY CHECK
-After computing Avg Ticket: Avg × count ÷ 100 must equal amount_cr ± 0.05.
-Failure (result is 10× or 0.1× off) = conversion error → recompute using 1 Crore = 100 Lakhs.
-If any Avg Ticket exceeds 5.00 L → stop and recompute.
+RULE 14 — AVG TICKET FROM JSON
+Use kpis.avg_ticket_lakhs.value and disbursal_trend[].avg_ticket_lakhs. Do not recompute.
 
-RULE 15 — MoM DELTA FROM UNROUNDED RATES ONLY
-Compute delta from full-precision rates derived from raw counts.
-Never subtract two already-rounded display percentages.
-✓ 880/5729×100 − 376/2857×100 = 15.3604 − 13.1607 = 2.1997 → round → 2.20pp
+RULE 15 — MoM DELTAS FROM JSON
+Use pre-computed delta_pp / mom_delta_pp fields. Do not subtract display percentages.
 
-RULE 16 — TOP 3 RANKED BY CSI VALUE
-Sort all Disbursed CSI values descending; pick the 3 highest.
-Not by table row order. After selecting, confirm no excluded feature ranks higher than #3.
+RULE 16 — TOP 3 FROM JSON
+Render top_3_unstable exactly. Do not re-sort features.
 
-RULE 17 — RISK SEGMENT VERIFICATION
-ABSENT = exact segment name not found anywhere in Disbursed table.
-PRESENT = name found (even 1 disbursal). Check each name independently.
-Re-verify every ABSENT flag after building the table. Never confuse similar names (e.g. Shallow_03 ≠ Shallow_04).
+RULE 17 — RISK SEGMENT / ABSENT FROM JSON
+Use risk_segments[].absent_in_disbursed and score_buckets[].absent_in_disbursed exactly.
 
-RULE 18 — ALERT SEVERITY IS NON-NEGOTIABLE
-Disbursed CSI > 0.25 → Status = "Critical". Never "Warning".
-Approval method CC > 20% + Disbursed < 5% → Status = "Critical". Never "Warning".
-Do not downgrade severity based on context, judgment, or magnitude of breach.
+RULE 18 — ALERT SEVERITY FROM JSON
+Render alerts[].status exactly (Critical / Warning / Critical (Persistent)).
+Do not downgrade or invent alerts.
 
 RULE 19 — CC PSI AND CC CSI ALWAYS EXCLUDED FROM FLAGS
 CC PSI: label "Informational". No RAG badge. No alert. Never flagged.
 CC CSI: shown as reference only. No badge. No colour. No alert. No comment on its level.
 This applies regardless of the CC PSI or CC CSI value.
 
-Core principle: Pre-compute first. Read raw values unchanged. Derive correctly. Never invent.
+Core principle: Read JSON unchanged. Narrate and render. Never invent. Never recompute.

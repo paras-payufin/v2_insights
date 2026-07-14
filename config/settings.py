@@ -17,10 +17,18 @@ import os
 # S3 Config — Sandbox bucket
 S3_BUCKET        = os.environ.get("S3_BUCKET", "dsa-data-sbox")
 
-# Set folder based on which file you're working with
-S3_FOLDER_BAJAJ  = os.environ.get("S3_FOLDER", "bajaj_strategic/")
-S3_FOLDER_FRAUD  = os.environ.get("S3_FOLDER", "fraud/")
-S3_FOLDER_UPTOP  = os.environ.get("S3_FOLDER", "uptop_v3/")
+# Per-pipeline prefixes (independent env vars; S3_FOLDER kept as legacy override for Bajaj)
+S3_FOLDER_BAJAJ  = os.environ.get("S3_FOLDER_BAJAJ", os.environ.get("S3_FOLDER", "bajaj_strategic/"))
+S3_FOLDER_FRAUD  = os.environ.get("S3_FOLDER_FRAUD", "fraud/")
+# UpTop V3 HTML reports currently land under bajaj_strategic/; override via S3_FOLDER_UPTOP
+S3_FOLDER_UPTOP  = os.environ.get("S3_FOLDER_UPTOP", os.environ.get("S3_FOLDER", "bajaj_strategic/"))
+
+# Local artifacts for HTML→JSON→MMR (gitignored)
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPTOP_V3_MMR_DATA_DIR = os.environ.get(
+    "UPTOP_V3_MMR_DATA_DIR",
+    os.path.join(_REPO_ROOT, "data", "uptop-v3-mmr"),
+)
 
 
 # ============================================================================

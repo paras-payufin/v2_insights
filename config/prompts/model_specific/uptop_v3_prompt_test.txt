@@ -1,120 +1,63 @@
 You are a senior data scientist specialising in model monitoring and evaluation.
-Analyse the attached UpTop V3 Model Monitoring Report (HTML file) and produce a
-single-file, self-contained HTML monitoring report — full-width, production-grade,
-immediately actionable by both technical and non-technical stakeholders.
+Analyse the attached UpTop V3 pre-computed MMR JSON (mmr_calculated.json) and
+produce a single-file, self-contained HTML monitoring report — full-width,
+production-grade, immediately actionable by both technical and non-technical
+stakeholders.
 
 ═══════════════════════════════════════════════════════
-FILE STRUCTURE — READ THIS BEFORE COMPUTING ANYTHING
+INPUT — PRE-COMPUTED MMR JSON (AUTHORITATIVE)
 ═══════════════════════════════════════════════════════
 
-The input file has two sections. Read each table group in order.
+All KPIs, RAG badges, rates, deltas, CSI classifications, rankings, absent flags,
+alerts, and next_review_date are ALREADY COMPUTED in the attached JSON.
+Do NOT recompute rates, CSI classifications, RAG badges, or alert thresholds.
+Use JSON values verbatim. Your job is narrative + HTML rendering only.
 
-SECTION 1 — CREDIT CHECK DATA (all applications that passed whitelisting)
-  Tables 1–2:  Current Status + %         Pipeline funnel: Disbursed, Rejected,
-                                           CA-LPS, Pre-approved, Expired, Open,
-                                           Cancelled, Closed. Observe MoM trends
-                                           in disbursal rate, rejection rate, and
-                                           CA-LPS leakage.
-  Tables 3–5:  V3 Bucket + % + PSI        Score distribution across model deciles
-                                           and Population Stability Index. CC PSI
-                                           is naturally elevated post-whitelisting
-                                           — note but do not flag. Observe bucket
-                                           shifts and stability trends.
-  Tables 6–7:  Risk Segment + %           Segment built from Uptop V3 + Bureau
-                                           Depth model combination. Observe which
-                                           segments are growing or shrinking MoM.
-  Tables 8–9:  Approval Method + %        Distribution across approval methods.
-                                           Observe conversion gaps MoM.
-  Tables 10–11: Bureau Depth Segment + %  Bureau Depth is a heuristic model
-                                           measuring data richness in the consumer's
-                                           bureau profile (1_DEEP, 2_MID, 3_SHALLOW).
-                                           Observe MoM shifts in depth distribution.
-  Table 12:    Features Overall            CSI of each input feature month-on-month
-                                           for the Credit Check population.
+Top-level keys (use these):
+  metadata              model_name, purpose, reporting_month, report_date,
+                        next_review_date, months_available, total_cc_applications_latest,
+                        total_disbursals_latest
+  overall_rag           Green | Amber | Red
+  kpis                  psi_credit_check, psi_disbursed, disbursal_rate, rejection_rate,
+                        ca_lps_not_done_pct, avg_ticket_lakhs, feature_csi_summary
+                        (each has value(s) + rag)
+  pipeline_funnel       per-status months{count,pct}, mom_delta_pp, direction
+  psi_history           month, cc_psi, disbursed_psi, disbursed_rag
+  score_buckets         bucket, cc_pct, disbursed_pct, gap_pp, absent_in_disbursed
+  features              name, cc_csi, disbursed_csi, disbursed_status_*, mom_delta,
+                        consecutive_instability_streak, unstable_months,
+                        adverse_selection
+  top_3_unstable        rank, name, disbursed_csi, status, adverse_selection
+  disbursal_trend       month, disbursed_count, amount_cr, avg_ticket_lakhs,
+                        disbursal_rate_pct, vol/amt mom deltas, double_risk_event
+  risk_segments         segment, cc_pct, disbursed_pct, gap_pp, absent_in_disbursed
+  approval_methods      method, cc_pct, disbursed_pct, gap_pp, critical_conversion_flag
+  bureau_depth_segments segment, cc/disbursed pct, gap_pp, disbursed_mom_delta_pp, alert
+  alerts                metric, current_value, threshold, status, recommended_action
 
-SECTION 2 — DISBURSAL DATA (disbursed applications only)
-  Table 1:     Disbursal Data             Count and amount (₹ Cr) per month.
-                                           Observe volume and value trends MoM.
-  Tables 2–3:  V3 Bucket + %             Score distribution for disbursed cohort.
-                                           Compare to CC distribution to detect
-                                           selection bias.
-  Tables 4–5:  Risk Segment + %          Segment distribution for disbursed cohort.
-                                           Identify ABSENT segments and conversion
-                                           gaps vs CC.
-  Tables 6–7:  Approval Method + %       Approval method distribution for disbursed
-                                           cohort. Flag methods with CC > 20% but
-                                           Disbursed < 5%.
-  Tables 8–9:  Bureau Depth Segment + %  Bureau Depth distribution for disbursed
-                                           cohort. Compare to CC distribution.
-  Table 10:    Features Disbursed        CSI of each input feature month-on-month
-                                           for the Disbursed population.
-
-For every table group: document MoM trends, directional shifts, and anomalies.
-CC PSI and CC CSI are expected to be elevated post-whitelisting — never flag them.
-
-═══════════════════════════════════════════════════════
-PRE-COMPUTATION — COMPLETE ALL STEPS BEFORE WRITING HTML
-═══════════════════════════════════════════════════════
-
-PRE-STEP 1 — PIPELINE RATES
-From the Credit Check status table, for latest and prior month:
-  DR = Disbursed ÷ Total × 100
-  RR = Rejected  ÷ Total × 100
-  CA = CA-LPS    ÷ Total × 100
-Compute at full precision. Round only the final delta:
-  DR_delta = DR − DR_prior  (round to 2dp)
-  RR_delta = RR − RR_prior  (round to 2dp)
-Record: DR, RR, CA, DR_delta, RR_delta.
-
-PRE-STEP 2 — AVERAGE TICKET SIZE
-For each month in the Disbursal table:
-  Avg Ticket (L) = amount_cr × 100 ÷ count
-  Example: amount_cr = 3.1449, count = 376 → 3.1449 × 100 ÷ 376 = 0.84 L
-  Hard stop: result > 5.00 L for any month → wrong formula, recompute.
-
-PRE-STEP 3 — CSI CLASSIFICATION
-For every Disbursed CSI value in the feature stability table apply:
-  > 0.25        → Unstable  (includes 0.26, 0.40, and any value above 0.25)
-  0.10 to 0.25  → Marginal  (0.25 is the ceiling; 0.26 is NOT Marginal)
-  < 0.10        → Stable
-Count: U (>0.25), M (0.10–0.25), S (<0.10). Verify U+M+S = total feature rows.
-Record individual status of every feature.
-
-PRE-STEP 4 — TOP 3 RANKING
-Sort all Disbursed CSI values descending. Record #1, #2, #3 (name + value).
-Rank by magnitude, not table row order.
-
-PRE-STEP 5 — RAG BADGES
-  PSI (Disbursed):  < 0.10 → Green | 0.10–0.20 → Amber | > 0.20 → Red
-  CA-LPS%:          < 15 → Green   | 15–30 → Amber      | > 30 → Red
-  Disbursal Rate:   drop = DR_prior − DR (unrounded); ≤ 3pp → Green | >3–5pp → Amber | > 5pp → Red
-  Rejection Rate:   MoM increase > 3pp → Amber; decrease or increase ≤ 3pp → Green
-  Feature CSI:      U > 0 → Red | U=0 and M > 0 → Amber | U=0 and M=0 → Green
+CC PSI and CC CSI are Informational / Reference only — never flag them.
+Use alerts[] as the complete early-warning list. Do not invent extra alerts.
 
 ═══════════════════════════════════════════════════════
 ANTI-FABRICATION RULES
 ═══════════════════════════════════════════════════════
 
-A-1  Every value must be verbatim from the file or computed per rules here.
-A-2  PSI from PSI table only. CSI from feature stability table only (blank → "—").
-     Rates from PRE-STEP 1. Avg Ticket from PRE-STEP 2.
-     Delta always from unrounded rates. Never subtract rounded display values.
-A-3  No estimated revenue, loss, or market size unless present in file.
-A-4  Thresholds in this prompt are the only reference. Never invent additional ones.
+A-1  Every numeric value must come from the attached JSON. Never invent or recompute.
+A-2  Use kpis.*, features, top_3_unstable, alerts exactly as provided.
+A-3  No estimated revenue, loss, or market size unless present in JSON.
+A-4  Do not invent thresholds beyond what the JSON / this prompt already encode.
 A-5  Owner mapping:
      PSI/CSI → "Data Science" | funnel/pipeline → "Operations + Product"
      disbursal/conversion → "Business + Analytics" | segment/method → "Risk + Product"
      Priority: Critical → P0 (Week 1) | Warning → P1 (Week 2–3) | Observational → P2 (Week 3–4)
-A-6  Next review date = 2 weeks from last day of latest reporting month.
-A-7  Absent value → "—". Never skip a section.
-A-8  CSI counts U/M/S must match PRE-STEP 3 in every section.
-A-9  Consecutive instability streak: check each month's Disbursed CSI vs 0.25
-     independently. A value ≤ 0.25 resets streak to zero. State actual months.
-A-10 Disbursal Rate RAG: drop = DR_prior − DR (unrounded). ≤ 3pp → Green.
-A-11 Risk segment PRESENT/ABSENT: by exact name in Disbursed table. PRESENT = found
-     (even 1 row). Only missing name = ABSENT. Re-verify each ABSENT flag.
-     Never confuse similar names (e.g. Shallow_03 ≠ Shallow_04).
-A-12 Approval method CC > 20% AND Disbursed < 5% → Status = "Critical".
+A-6  next_review_date = metadata.next_review_date (already computed).
+A-7  Absent / null value → "—". Never skip a section.
+A-8  CSI counts U/M/S must match kpis.feature_csi_summary in every section.
+A-9  Consecutive instability: use features[].consecutive_instability_streak and
+     features[].unstable_months — do not re-derive.
+A-10 Disbursal / rejection / CA-LPS RAG: use kpis.*.rag exactly.
+A-11 Risk segment ABSENT: use risk_segments[].absent_in_disbursed exactly.
+A-12 Approval critical flags: use approval_methods[].critical_conversion_flag.
 A-13 CC PSI: "Informational" — no RAG badge, no alert.
      CC CSI: reference only — no badge, no flag, no comment on magnitude.
 
@@ -141,7 +84,7 @@ Full-width dark navy banner.
 Title: "UpTop V3 — Model Monitoring Report"
 Sub-line: "Bajaj Credit Check | Live Pipeline Data"
 Right-aligned metadata: Reporting Month | Report Date | Overall RAG pill
-Overall RAG = worst RAG among: Disbursed PSI + Disbursed CSI + funnel RAGs (CC excluded entirely).
+Overall RAG = metadata/overall_rag from JSON (already computed; CC excluded).
 
 SECTION 2 — MODEL OVERVIEW (two-column cards)
 Left card:
@@ -155,15 +98,15 @@ Right card:
   Brief note on what Bureau Depth measures (1_DEEP / 2_MID / 3_SHALLOW).
 
 SECTION 3 — KPI DASHBOARD (7 cards, full-width single row)
-Each card: label | value | RAG badge. Order:
-  1. PSI (Credit Check)      — grey "Informational" badge
-  2. PSI (Disbursed)         — PRE-STEP 5 RAG
-  3. Disbursal Rate          — PRE-STEP 1 value; PRE-STEP 5 RAG
-  4. Rejection Rate          — PRE-STEP 1 value; PRE-STEP 5 RAG
-  5. CA But LPS Not Done %   — PRE-STEP 1 value; PRE-STEP 5 RAG
-  6. Avg Ticket Size (₹ L)   — PRE-STEP 2 latest month
-  7. Feature CSI (Disbursed) — "U Unstable / M Marginal / S Stable"; PRE-STEP 5 RAG
-Below cards: 2–3 sentence model health narrative — overall RAG, primary driver,
+Each card: label | value | RAG badge. Order (from kpis.*):
+  1. PSI (Credit Check)      — kpis.psi_credit_check (Informational)
+  2. PSI (Disbursed)         — kpis.psi_disbursed
+  3. Disbursal Rate          — kpis.disbursal_rate
+  4. Rejection Rate          — kpis.rejection_rate
+  5. CA But LPS Not Done %   — kpis.ca_lps_not_done_pct
+  6. Avg Ticket Size (₹ L)   — kpis.avg_ticket_lakhs
+  7. Feature CSI (Disbursed) — feature_csi_summary "U / M / S" + rag
+Below cards: 2–3 sentence model health narrative — overall_rag, primary driver,
 Unstable feature count. Do NOT name individual features here.
 
 SECTION 4 — APPLICATION PIPELINE FUNNEL (full-width table)
@@ -193,18 +136,18 @@ Right: Score bucket table (latest month):
 SECTION 6 — CSI & FEATURE STABILITY (full-width)
 Table: Feature Name | CC CSI | CC Status | Disbursed CSI | Disbursed Status | MoM Trend
 CC Status: always "Reference" — no colour, no badge.
-Disbursed Status: PRE-STEP 3 classification exactly.
+Disbursed Status: features[].disbursed_status_latest exactly.
 Row backgrounds: Unstable #fef2f2 | Marginal #fffbeb | Stable white.
-If Disbursed CSI > CC CSI → add ⚠ adverse selection note in that row.
-MoM Trend column: show direction of Disbursed CSI vs prior month (↑ ↓ →).
+If adverse_selection → add ⚠ adverse selection note in that row.
+MoM Trend column: from features[].mom_delta (↑ ↓ →).
 
-Top 3 Most Unstable panel (PRE-STEP 4):
+Top 3 Most Unstable panel (top_3_unstable):
   Label: "Top 3 Most Unstable (by Disbursed CSI)"
   Show: rank | name | Disbursed CSI | status | adverse selection flag if applicable.
   Note: highlight panel only, not the full Unstable list.
 
-Multi-month instability callout (A-9): for each feature, state explicitly which months
-were Unstable. Flag High Priority if ≥ 2 consecutive months Unstable.
+Multi-month instability callout: use features[].unstable_months and
+consecutive_instability_streak. Flag High Priority if streak ≥ 2.
 
 2–3 sentence feature stability narrative: summarise overall drift direction,
 count of features worsening MoM, and any feature showing improvement.
@@ -232,7 +175,7 @@ zero Disbursed conversion.
 
 Sub-section D — Bureau Depth Segment Distribution
 Table: Segment | CC % | Disbursed % | Gap (pp) | MoM Δ (Disbursed %)
-Segments verbatim from file (1_DEEP, 2_MID, 3_SHALLOW).
+Segments verbatim from JSON (1_DEEP, 2_MID, 3_SHALLOW).
 Note whether richer bureau profiles (1_DEEP) are over- or underrepresented
 in disbursals vs credit check. Flag any MoM shift > 3pp in any segment.
 Narrative: 2 sentences on bureau depth composition trend and what it implies
@@ -242,33 +185,22 @@ about the applicant mix reaching disbursal.
 No monetary estimates unless present in file.
 
 SECTION 8 — EARLY WARNING ALERTS (full-width)
-Header: "Active Alerts"  |  Sub-line: "Evaluated: [report date from file]"
+Header: "Active Alerts"  |  Sub-line: "Evaluated: [metadata.report_date]"
 Table: # | Metric | Current Value | Threshold | Status | Recommended Action
 Status pills: Critical #ef4444 | Warning #f59e0b | OK #22c55e
 
-Alert triggers:
-  Disbursed PSI > 0.20 → Critical | 0.10–0.20 → Warning  (CC PSI excluded)
-  Disbursed CSI > 0.25 → Critical, one row per Unstable feature (PRE-STEP 3)
-  Disbursed CSI 0.10–0.25 → Warning, one row per Marginal feature
-  Persistent CSI (≥ 2 consecutive months Unstable per A-9) → append "Persistent" to Status
-  CC CSI excluded from all alerts regardless of value
-  Disbursal Rate drop > 5pp → Critical | >3–5pp → Warning | ≤ 3pp → no alert
-  CA-LPS% > 30% → Critical | 15–30% → Warning
-  Rejection Rate MoM increase > 3pp → Warning; decrease or ≤ 3pp → no alert
-  Approval method CC > 20% AND Disbursed < 5% → Critical
-  Score bucket or risk segment confirmed ABSENT → Warning
-  Bureau Depth segment MoM shift > 3pp in Disbursed → Warning
-If no thresholds breached: "No active alerts — all metrics within acceptable range."
+Render alerts[] from the JSON as the Active Alerts table. Do not invent extra rows.
+If alerts is empty: "No active alerts — all metrics within acceptable range."
 
 SECTION 9 — SUMMARY & ACTIONABLE INSIGHTS
-4–6 bullet findings — file values only, no estimates.
+4–6 bullet findings — JSON values only, no estimates.
 Format: "[Metric] at [value] — [context + MoM delta if applicable] — [severity]"
-Use PRE-STEP 3 Unstable count throughout.
+Use kpis.feature_csi_summary.unstable throughout.
 
 Action table: Finding | Recommended Action | Owner | Priority | Timeline
 Use A-5 mappings exactly.
 
-Close with: "Next Review Date: [2 weeks from last day of latest reporting month]"
+Close with: "Next Review Date: [metadata.next_review_date]"
 
 ═══════════════════════════════════════════════════════
 VISUAL DESIGN — INLINE CSS ONLY, NO EXTERNAL DEPENDENCIES
