@@ -1,276 +1,200 @@
-You are a senior data scientist specialising in model monitoring and evaluation. Analyse the attached UpTop V3 Model Monitoring Report (HTML file) and produce a single-file, self-contained, production-grade HTML monitoring report that is visually premium, full-width, and immediately actionable by both technical and non-technical stakeholders.
+You are a senior data scientist specialising in model monitoring. Analyse the
+attached UpTop V3 Model Monitoring Report (HTML file) and produce a single-file,
+self-contained HTML monitoring report — full-width, production-grade, immediately
+actionable by technical and non-technical stakeholders.
 
 ═══════════════════════════════════════════════════════
-PRE-COMPUTATION BLOCK — COMPLETE BEFORE WRITING ANYTHING
+PRE-COMPUTATION — COMPLETE ALL STEPS BEFORE WRITING HTML
 ═══════════════════════════════════════════════════════
 
-Do not write a single HTML tag until all five steps below are finished.
+PRE-STEP 1 — PIPELINE RATES
+From the Credit Check status table, for latest and prior month:
+  DR = Disbursed ÷ Total × 100
+  RR = Rejected  ÷ Total × 100
+  CA = CA-LPS    ÷ Total × 100
+Compute at full precision. Round only the final delta:
+  DR_delta = DR − DR_prior  (round to 2dp)
+  RR_delta = RR − RR_prior  (round to 2dp)
+Record: DR, RR, CA, DR_delta, RR_delta.
 
-PRE-STEP 1 — PIPELINE RATES (from Credit Check status table, latest month)
-  Read: Disbursed count, Rejected count, CA-LPS count, Total count.
-  Compute and record with FULL decimal precision (do NOT round yet):
-    DR       = Disbursed ÷ Total × 100
-    RR       = Rejected  ÷ Total × 100
-    CA       = CA-LPS    ÷ Total × 100
-  Repeat for the prior month → DR_prior, RR_prior.
-  Compute deltas from unrounded rates (round only the final delta):
-    DR_delta = DR − DR_prior          (round to 2 dp)
-    RR_delta = RR − RR_prior          (round to 2 dp)
-  Record: DR, RR, CA, DR_delta, RR_delta.
+PRE-STEP 2 — AVERAGE TICKET SIZE
+For each month in the Disbursal table:
+  Total Lakhs = amount_cr × 100   (1 Crore = 100 Lakhs — never use 10)
+  Avg Ticket  = Total Lakhs ÷ count  (round to 2dp)
+  Verify: Avg × count ÷ 100 = amount_cr ± 0.01. Mismatch → recompute.
+  If any Avg Ticket > 5.00 L → stop and recompute from amount_cr.
 
-PRE-STEP 2 — AVERAGE TICKET SIZE (all disbursed months)
-  For each month in the Disbursal table:
-    a) Read amount_cr (Indian Crore).
-    b) Total Lakhs = amount_cr × 100     ← 1 Crore = 100 Lakhs. Never use 10.
-    c) Avg Ticket  = Total Lakhs ÷ count  ← round to 2 dp
-    d) Verify: Avg Ticket × count ÷ 100 must equal amount_cr ± 0.01.
-               Mismatch → conversion error → correct before continuing.
-  Example (May 2026): amount_cr=3.14, count=376
-    → Total Lakhs = 3.14 × 100 = 314 Lakhs
-    → Avg Ticket  = 314 ÷ 376  = 0.84 L
-    → Verify: 0.84 × 376 ÷ 100 = 3.16 ≈ 3.14 ✓
-  If any Avg Ticket exceeds 5.00 L for this dataset, stop — recompute from (a).
-
-PRE-STEP 3 — CSI CLASSIFICATION (classify every feature before writing anything)
-  Read every Disbursed CSI value from the feature stability table.
-  Apply to EACH value:
-    IF value > 0.25  → Unstable  (Red)
-    IF 0.10 ≤ value ≤ 0.25 → Marginal (Amber)
-    IF value < 0.10  → Stable   (Green)
-  CRITICAL: The Unstable boundary is 0.25. ANY value above 0.25 — including 0.26,
-  0.40, 0.57, 0.66, 0.70, 0.81, 0.87, 1.02, 1.33 — is Unstable. Not Marginal.
-  Marginal = 0.10 to 0.25 only. Values above 0.25 are NEVER Marginal.
-  Count: U = features > 0.25 | M = features 0.10–0.25 | S = features < 0.10
-  Verify U + M + S = total feature rows. If not, recount.
-  Record: U, M, S and the individual status of every feature.
+PRE-STEP 3 — CSI CLASSIFICATION
+For every Disbursed CSI value in the feature stability table:
+  > 0.25 → Unstable | 0.10–0.25 → Marginal | < 0.10 → Stable
+Count: U (>0.25), M (0.10–0.25), S (<0.10). Verify U+M+S = total feature rows.
+Record individual status of every feature.
 
 PRE-STEP 4 — TOP 3 RANKING
-  List all Disbursed CSI values. Sort descending (highest first).
-  Record: #1 name + value, #2 name + value, #3 name + value.
-  Rank by value magnitude — NOT by row position in the table.
+Sort all Disbursed CSI values descending. Record #1, #2, #3 (name + value).
+Rank by magnitude, not table row order.
 
 PRE-STEP 5 — RAG BADGES
-  Record the correct badge for each KPI:
   PSI (Disbursed):  < 0.10 → Green | 0.10–0.20 → Amber | > 0.20 → Red
-  CA-LPS%:          > 30   → Red   | 15–30     → Amber  | < 15   → Green
-  Disbursal Rate:   drop = DR_prior − DR (unrounded)
-                    ≤ 3pp → Green | > 3pp and ≤ 5pp → Amber | > 5pp → Red
-  Rejection Rate:   delta = RR − RR_prior (unrounded)
-                    Amber ONLY if delta > +3pp (rate increased >3pp)
-                    Any decrease or increase ≤ 3pp → Green
-                    Example: prior=36.15%, current=33.74%, delta=−2.41pp → Green
-  Feature CSI:      U > 0 → Red | U = 0 and M > 0 → Amber | U = 0 and M = 0 → Green
+  CA-LPS%:          < 15 → Green   | 15–30 → Amber      | > 30 → Red
+  Disbursal Rate:   drop = DR_prior − DR (unrounded); ≤ 3pp → Green | >3–5pp → Amber | > 5pp → Red
+  Rejection Rate:   MoM increase > 3pp → Amber; decrease or increase ≤ 3pp → Green
+  Feature CSI:      U > 0 → Red | U=0 and M > 0 → Amber | U=0 and M=0 → Green
 
 ═══════════════════════════════════════════════════════
 ANTI-FABRICATION RULES
 ═══════════════════════════════════════════════════════
 
-A-1  Every numeric value must be verbatim from the HTML or computed by the rules below.
-A-2  PSI → read from PSI table only. Never derive from score buckets.
-A-3  CSI → read from feature stability table only. Never compute. Blank → "—".
-A-4  Derived metrics only (use PRE-STEP results — do not recompute in sections):
-       Rates: PRE-STEP 1  |  Avg Ticket: PRE-STEP 2  |  MoM delta: PRE-STEP 1
-       MoM delta = current unrounded rate − prior unrounded rate. Round delta only.
-       NEVER subtract two already-rounded values to compute a delta.
-A-5  No estimated revenue, loss, or market size. Omit if not in file.
-A-6  Thresholds in this prompt are the only reference. Never invent additional thresholds.
-A-7  Owner: PSI/CSI → "Data Science" | funnel/pipeline → "Operations + Product" |
-            disbursal/conversion → "Business + Analytics" | segment/method → "Risk + Product"
+A-1  Every value must be verbatim from the file or computed per rules here.
+A-2  PSI from PSI table only. CSI from feature stability table only (blank → "—").
+     Rates from PRE-STEP 1. Avg Ticket from PRE-STEP 2.
+     Delta always from unrounded rates. Never subtract rounded display values.
+A-3  No estimated revenue, loss, or market size unless present in file.
+A-4  Thresholds in this prompt are the only reference. Never invent additional ones.
+A-5  Owner mapping: PSI/CSI → "Data Science" | funnel/pipeline → "Operations + Product" |
+     disbursal/conversion → "Business + Analytics" | segment/method → "Risk + Product"
      Priority: Critical → P0 (Week 1) | Warning → P1 (Week 2–3) | Observational → P2 (Week 3–4)
-A-8  Next review date = 2 weeks from last day of latest reporting month.
-A-9  Absent value → "—". Never skip a section.
-A-10 CSI counts U/M/S come from PRE-STEP 3. No section may show different counts.
-A-11 Consecutive months instability: check each month's Disbursed CSI against 0.25
-     independently. A value ≤ 0.25 in any month resets the streak to zero.
-     State actual months. Example: Feb✓ Mar✗ Apr✓ May✓ → streak = 2, not 4.
-A-12 Disbursal Rate RAG: drop = DR_prior − DR (unrounded). ≤ 3pp → Green.
-A-13 Risk segment PRESENT/ABSENT: check Disbursed table by exact segment name, one at a time.
-     PRESENT = name found in Disbursed table (even 1 disbursal). Only missing name = ABSENT.
-     After table, re-verify every ABSENT flag. Never confuse similar names (e.g. Shallow_03 ≠ Shallow_04).
-A-14 Approval method CC > 20% AND Disbursed < 5% → Status = "Critical". Never "Warning".
-A-15 Credit Check PSI: label "Informational". No RAG badge. Never flagged.
-     Credit Check CSI: shown for reference only. No badge. No flag. No comment on its magnitude.
+A-6  Next review date = 2 weeks from last day of latest reporting month.
+A-7  Absent value → "—". Never skip a section.
+A-8  CSI counts U/M/S must match PRE-STEP 3 in every section.
+A-9  Consecutive instability streak: check each month's Disbursed CSI vs 0.25
+     independently. A value ≤ 0.25 resets streak to zero. State actual months.
+A-10 Disbursal Rate RAG: drop = DR_prior − DR (unrounded). ≤ 3pp → Green.
+A-11 Risk segment PRESENT/ABSENT: exact name match in Disbursed table.
+     PRESENT = name found (even 1 row). Only missing name = ABSENT.
+     Re-verify every ABSENT flag. Never confuse similar names.
+A-12 Approval method CC > 20% AND Disbursed < 5% → Status = "Critical".
+A-13 CC PSI: "Informational" — no RAG badge, no alert.
+     CC CSI: reference only — no badge, no flag, no comment on magnitude.
 
 ═══════════════════════════════════════════════════════
 CONTEXT
 ═══════════════════════════════════════════════════════
 
-Model: Uptop V3 — risk scoring model, Bajaj credit check stage.
+Model: Uptop V3 — risk scoring, Bajaj credit check stage.
 File: Section 1 = Credit Check (all applications). Section 2 = Disbursal (disbursed only).
-CC PSI and CC CSI are naturally elevated post-whitelisting — never flag or comment on them.
+CC PSI/CSI are naturally elevated post-whitelisting — never flag or comment on them.
 Cadence: monthly snapshots. Source: file only. Absent values → "—".
 
 ═══════════════════════════════════════════════════════
-OUTPUT — 9 SECTIONS IN THIS ORDER
-Zero words before the first character of <!DOCTYPE html>.
+OUTPUT — 9 SECTIONS IN ORDER
+First output characters: <!DOCTYPE html>   Last output characters: </html>
 ═══════════════════════════════════════════════════════
 
-SECTION 1 — REPORT HEADER (full-width dark navy banner)
-  Title: "UpTop V3 — Model Monitoring Report"
-  Sub-line: "Bajaj Credit Check | Live Pipeline Data"
-  Right-aligned metadata strip: Reporting Month | Report Date | Overall RAG pill
-  Overall RAG = worst of Disbursed PSI + Disbursed CSI + funnel RAGs (CC excluded entirely).
+SECTION 1 — REPORT HEADER
+Full-width dark navy banner.
+Title: "UpTop V3 — Model Monitoring Report"
+Sub-line: "Bajaj Credit Check | Live Pipeline Data"
+Right-aligned metadata: Reporting Month | Report Date | Overall RAG pill
+Overall RAG = worst among: Disbursed PSI + Disbursed CSI + funnel RAGs (CC excluded entirely).
 
-SECTION 2 — MODEL OVERVIEW (two-column card row)
-  Left card — Model Identity:
-    Model Name: Uptop V3
-    Purpose: Risk Model — Bajaj Credit Check Stage
-    Monitoring Cadence: Monthly
-    Data Source: Credit Check + Disbursed Pipeline
-  Right card — Reporting Period summary: months available, latest month, total applications CC, total disbursals.
+SECTION 2 — MODEL OVERVIEW (two-column cards)
+Left: Model Name | Purpose | Cadence | Data Source.
+Right: Months available | Latest month | Total CC applications | Total disbursals.
 
-SECTION 3 — KPI DASHBOARD (single row of 7 pill/badge cards, full width)
-  Use values from PRE-STEPS. Each card: metric label | value | RAG badge.
-  Cards in this order:
-    1. PSI (Credit Check)       — grey "Informational" badge, value from PSI table
-    2. PSI (Disbursed)          — RAG from PRE-STEP 5
-    3. Disbursal Rate           — value from PRE-STEP 1; RAG from PRE-STEP 5
-    4. Rejection Rate           — value from PRE-STEP 1; RAG from PRE-STEP 5
-                                  (Green if delta ≤ 0 or increase ≤ 3pp; Amber only if increase > 3pp)
-    5. CA But LPS Not Done %    — value from PRE-STEP 1; RAG from PRE-STEP 5
-    6. Avg Ticket Size (₹ L)    — value from PRE-STEP 2, latest month
-    7. Feature CSI (Disbursed)  — "U Unstable / M Marginal / S Stable" from PRE-STEP 3; RAG from PRE-STEP 5
-
-  Below the 7 cards: 2–3 sentence Overall Model Health narrative.
-    — State overall RAG and primary metric driving it.
-    — State total Unstable feature count: "X of Y features Unstable in Disbursed population."
-    — Do NOT name individual features here.
+SECTION 3 — KPI DASHBOARD (7 cards, full-width single row)
+Each card: label | value | RAG badge. Order:
+  1. PSI (Credit Check)      — grey "Informational" badge
+  2. PSI (Disbursed)         — PRE-STEP 5 RAG
+  3. Disbursal Rate          — PRE-STEP 1 value; PRE-STEP 5 RAG
+  4. Rejection Rate          — PRE-STEP 1 value; PRE-STEP 5 RAG
+  5. CA But LPS Not Done %   — PRE-STEP 1 value; PRE-STEP 5 RAG
+  6. Avg Ticket Size (₹ L)   — PRE-STEP 2 latest month
+  7. Feature CSI (Disbursed) — "U Unstable / M Marginal / S Stable"; PRE-STEP 5 RAG
+Below cards: 2–3 sentence model health narrative — overall RAG, primary driver,
+Unstable feature count. Do NOT name individual features here.
 
 SECTION 4 — APPLICATION PIPELINE FUNNEL (full-width table)
-  Columns: Status | Count (prior month) | % (prior month) | Count (latest month) | % (latest month) | MoM Δ (pp)
-  Rows: Disbursed | Rejected | CA But LPS Not Done | Pre-approved | Expired | Open | Cancelled | Closed
-  MoM Δ: from unrounded % values (round delta only). Red text if undesirable; green if desirable.
-  Call out:
-    — CA-LPS > 30%: red alert banner above table
-    — Rejection Rate trend direction
-    — Expired to 0%: note as data maturity effect
-    — Pre-approved trend
-  2–3 sentence pipeline efficiency narrative below table.
+Columns: Status | Count (prior) | % (prior) | Count (latest) | % (latest) | MoM Δ (pp)
+Rows: Disbursed | Rejected | CA But LPS Not Done | Pre-approved | Expired | Open | Cancelled | Closed
+MoM Δ from unrounded rates; round delta only.
+Red text = undesirable direction. Green = desirable.
+Callouts: CA-LPS > 30% → red alert banner above table. Note rejection trend,
+expired/0% data maturity effect, pre-approved trend.
+2–3 sentence pipeline efficiency narrative below table.
 
-SECTION 5 — PSI & SCORE DISTRIBUTION (two-column layout)
-  Left: PSI history table (all months)
-    Columns: Month | CC PSI (Informational — no badge) | Disbursed PSI (RAG badge) | Trend arrow
-    Flag Disbursed PSI only if > 0.20.
-  Right: V3 Score Bucket table (latest month only)
-    Columns: V3 Bucket | CC % | Disbursed % | Gap (pp)
-    Use bucket labels verbatim from file. Flag any bucket present in CC but 0.00% in Disbursed.
-  2–3 sentence stability narrative below.
+SECTION 5 — PSI & SCORE DISTRIBUTION (two-column)
+Left: PSI history table — Month | CC PSI (Informational, no badge) | Disbursed PSI (RAG) | Trend arrow.
+Flag Disbursed PSI only if > 0.20.
+Right: Score bucket table, latest month — V3 Bucket | CC % | Disbursed % | Gap (pp).
+Verbatim bucket labels. Flag any bucket present in CC but 0.00% in Disbursed.
+2–3 sentence stability narrative below.
 
 SECTION 6 — CSI & FEATURE STABILITY (full-width)
-  Values and statuses from PRE-STEPS 3 & 4 — do not reclassify here.
-  Table columns: Feature Name | CC CSI | CC Status | Disbursed CSI | Disbursed Status | MoM Trend
-    — CC Status: always show "Reference" — no colour, no badge.
-    — Disbursed Status: use PRE-STEP 3 classification exactly. Apply row background colour.
-      Unstable row: light red #fef2f2 | Marginal row: light amber #fffbeb | Stable row: white
-    — If Disbursed CSI > CC CSI: add ⚠ adverse selection note in the row.
-  Top 3 Most Unstable Features panel (from PRE-STEP 4 ranking):
-    Label: "Top 3 Most Unstable (by Disbursed CSI)"
-    Show: rank | feature name | Disbursed CSI | status from PRE-STEP 3 | adverse selection flag if applicable.
-    This is a highlight panel — it does not imply only 3 features are Unstable.
-  Multi-month instability callout (RULE A-11): state months explicitly; flag High Priority if ≥ 2 consecutive.
+Table: Feature Name | CC CSI | CC Status | Disbursed CSI | Disbursed Status | MoM Trend
+CC Status: always "Reference" — no colour, no badge.
+Disbursed Status: PRE-STEP 3 classification. Row backgrounds: Unstable #fef2f2 | Marginal #fffbeb | Stable white.
+If Disbursed CSI > CC CSI → add ⚠ adverse selection note in that row.
+Top 3 Most Unstable panel (PRE-STEP 4): rank | name | Disbursed CSI | status | adverse selection flag.
+Label: "Top 3 Most Unstable (by Disbursed CSI)" — note this is a highlight, not the full Unstable list.
+Multi-month instability callout (A-9): state months explicitly. Flag High Priority if ≥ 2 consecutive.
 
-SECTION 7 — DISBURSAL & RISK SEGMENT ANALYSIS (two-column layout where possible)
-  Disbursal trend table:
-    Columns: Month | Applications | Amount (₹ Cr) | Avg Ticket (₹ L, PRE-STEP 2) | Disbursal Rate % | MoM Vol Δ | MoM Amt Δ
-    Flag any month where both volume AND amount declined MoM as "⚠ Double-Risk Event".
-  Risk Segment table (apply RULE A-13):
-    Columns: Segment | CC % | Disbursed % | Gap (pp) | Flag
-    All CC segments must appear. ABSENT flag only for confirmed-absent segments.
-    Narrative names only confirmed-ABSENT segments.
-  Approval Method table:
-    Columns: Method | CC % | Disbursed % | Gap (pp)
-    Names verbatim from file. CC > 20% + Disbursed < 5% → Critical flag (RULE A-14).
-  3–4 sentence adverse selection narrative. No monetary estimates unless in file.
+SECTION 7 — DISBURSAL & RISK SEGMENT ANALYSIS (two-column where possible)
+Disbursal trend table: Month | Applications | Amount (₹ Cr) | Avg Ticket (₹ L) | Disbursal Rate % | MoM Vol Δ | MoM Amt Δ
+Flag months where both volume AND amount declined MoM: "⚠ Double-Risk Event".
+Risk segment table: Segment | CC % | Disbursed % | Gap (pp) | Flag
+All CC segments shown. ABSENT only for confirmed-absent names. Narrative names only confirmed-ABSENT.
+Approval method table: Method | CC % | Disbursed % | Gap (pp)
+Verbatim method names. CC > 20% + Disbursed < 5% → Critical flag.
+3–4 sentence adverse selection narrative. No monetary estimates unless in file.
 
-SECTION 8 — EARLY WARNING ALERTS (full-width alert panel)
-  Header: "Active Alerts" | sub-line: "Evaluated: [report date from file]"
-  Table columns: # | Metric | Current Value | Threshold | Status | Recommended Action
-  Status pills: Critical #ef4444 | Warning #f59e0b | OK #22c55e
+SECTION 8 — EARLY WARNING ALERTS (full-width)
+Header: "Active Alerts"  |  Sub-line: "Evaluated: [report date from file]"
+Table: # | Metric | Current Value | Threshold | Status | Recommended Action
+Status pills: Critical #ef4444 | Warning #f59e0b | OK #22c55e
 
-  Alert triggers (values from file; thresholds from this prompt only):
-    Disbursed PSI > 0.20 → Critical | 0.10–0.20 → Warning   (CC PSI excluded)
-    Disbursed CSI > 0.25 → Critical (one row per Unstable feature from PRE-STEP 3)
-    Disbursed CSI 0.10–0.25 → Warning (one row per Marginal feature)
-    Persistent CSI (≥ 2 consecutive months Unstable per RULE A-11) → append "Persistent" to Status
-    CC CSI: excluded from all alerts regardless of value
-    Disbursal Rate drop > 5pp → Critical | > 3pp ≤ 5pp → Warning | ≤ 3pp → no alert
-    CA-LPS% > 30% → Critical | 15–30% → Warning
-    Rejection Rate MoM increase > 3pp → Warning (decrease or ≤ 3pp increase → no alert)
-    Approval method CC > 20% AND Disbursed < 5% → Critical (RULE A-14: must say "Critical")
-    Score bucket or risk segment confirmed ABSENT (RULE A-13) → Warning
-
-  If no thresholds breached: single row "No active alerts — all metrics within acceptable range."
+Alert triggers:
+  Disbursed PSI > 0.20 → Critical | 0.10–0.20 → Warning  (CC PSI excluded)
+  Disbursed CSI > 0.25 → Critical, one row per Unstable feature (PRE-STEP 3)
+  Disbursed CSI 0.10–0.25 → Warning, one row per Marginal feature
+  Persistent CSI (≥ 2 consecutive months Unstable per A-9) → append "Persistent" to Status
+  CC CSI excluded from all alerts regardless of value
+  Disbursal Rate drop > 5pp → Critical | >3–5pp → Warning | ≤ 3pp → no alert
+  CA-LPS% > 30% → Critical | 15–30% → Warning
+  Rejection Rate MoM increase > 3pp → Warning; decrease or ≤ 3pp → no alert
+  Approval method CC > 20% AND Disbursed < 5% → Critical
+  Score bucket or risk segment confirmed ABSENT → Warning
+If no thresholds breached: "No active alerts — all metrics within acceptable range."
 
 SECTION 9 — SUMMARY & ACTIONABLE INSIGHTS
-  4–6 bullet findings — specific numbers from file only, no estimates.
-  Format: "[Metric] at [value] — [context + MoM delta if applicable] — [severity]"
-  Use Unstable count from PRE-STEP 3 (not a partial list).
-
-  Action table: Finding | Recommended Action | Owner | Priority | Timeline
-  Use RULE A-7 mapping exactly.
-
-  Close with: "Next Review Date: [2 weeks from last day of latest reporting month, per A-8]"
+4–6 bullet findings — file values only, no estimates.
+Format: "[Metric] at [value] — [context + MoM delta if applicable] — [severity]"
+Use PRE-STEP 3 Unstable count throughout.
+Action table: Finding | Recommended Action | Owner | Priority | Timeline  (use A-5 mappings)
+Close with: "Next Review Date: [2 weeks from last day of latest reporting month]"
 
 ═══════════════════════════════════════════════════════
-VISUAL DESIGN — PREMIUM FULL-WIDTH
+VISUAL DESIGN — INLINE CSS ONLY, NO EXTERNAL DEPENDENCIES
 ═══════════════════════════════════════════════════════
-These are styling instructions only. They must never alter any data value or label.
 
-LAYOUT:
-  — body: margin 0; padding 0; background #f0f2f5; font-family -apple-system, "Segoe UI", Roboto, Arial, sans-serif; font-size 14px; line-height 1.6; color #1a202c
-  — .page-wrapper: width 100%; padding 0 32px; box-sizing border-box
-  — No max-width constraint on the main container — the report must fill the full browser width
-  — Use CSS Grid for multi-column layouts (KPI row, two-column sections)
-  — All tables: width 100%; table-layout fixed or auto as appropriate
+body: margin 0; padding 0; background #f0f2f5; font-family -apple-system,"Segoe UI",Roboto,Arial,sans-serif; font-size 14px; line-height 1.6; color #1a202c
+.page-wrapper: width 100%; padding 0 32px; box-sizing border-box. No max-width on main container.
+Multi-column layouts: CSS Grid with fr units. All tables: width 100%.
 
-HEADER (Section 1):
-  — Full-width; background linear-gradient(135deg, #0f2057 0%, #1e3a8a 60%, #1e40af 100%)
-  — Padding: 36px 40px; color white
-  — Title: font-size 26px; font-weight 700; letter-spacing 0.5px
-  — Sub-line: font-size 15px; opacity 0.80; margin-top 4px
-  — Metadata strip: float right or flex row; font-size 13px; opacity 0.85
+Header: background linear-gradient(135deg,#0f2057 0%,#1e3a8a 60%,#1e40af 100%); padding 36px 40px; color white.
+  Title: font-size 26px; font-weight 700. Sub-line: font-size 15px; opacity 0.80.
+  Metadata strip: flex right; font-size 13px; opacity 0.85.
 
-KPI CARDS (Section 3):
-  — Grid: display grid; grid-template-columns repeat(7, 1fr); gap 16px; padding 24px 0
-  — Each card: background white; border-radius 10px; padding 20px 16px; text-align center;
-    box-shadow 0 2px 8px rgba(0,0,0,0.08); border-top 4px solid [RAG colour]
-  — Metric label: font-size 11px; text-transform uppercase; letter-spacing 0.6px; color #64748b; margin-bottom 8px
-  — Value: font-size 26px; font-weight 700; color #1e293b
-  — RAG badge: display inline-block; padding 3px 10px; border-radius 12px; font-size 11px;
-    font-weight 600; color white; margin-top 8px
+KPI cards: grid-template-columns repeat(7,1fr); gap 16px; padding 24px 0.
+  Card: background white; border-radius 10px; padding 20px 16px; text-align center;
+    box-shadow 0 2px 8px rgba(0,0,0,0.08); border-top 4px solid [RAG colour].
+  Label: font-size 11px; text-transform uppercase; letter-spacing 0.6px; color #64748b.
+  Value: font-size 26px; font-weight 700; color #1e293b.
+  Badge: inline-block; padding 3px 10px; border-radius 12px; font-size 11px; font-weight 600; color white.
 
-SECTION CARDS:
-  — Each section (2–9): background white; border-radius 12px; margin 20px 0;
-    padding 28px 32px; box-shadow 0 1px 4px rgba(0,0,0,0.07)
-  — Section heading: font-size 16px; font-weight 700; color #1e3a8a; margin-bottom 20px;
-    padding-bottom 10px; border-bottom 2px solid #e2e8f0; display flex; align-items center; gap 10px
-  — Add a small left-border accent: border-left 4px solid #1e3a8a on heading if preferred
+Section cards: background white; border-radius 12px; margin 20px 0; padding 28px 32px; box-shadow 0 1px 4px rgba(0,0,0,0.07).
+Section heading: font-size 16px; font-weight 700; color #1e3a8a; margin-bottom 20px; padding-bottom 10px; border-bottom 2px solid #e2e8f0.
 
-TABLES:
-  — thead: background #1e3a8a; color white; font-weight 600; font-size 12px; text-transform uppercase; letter-spacing 0.4px
-  — th, td: padding 11px 14px; text-align left; border-bottom 1px solid #f1f5f9
-  — tbody tr:nth-child(even): background #f8fafc
-  — tbody tr:hover: background #eff6ff
-  — font-size 13px
+Tables: thead background #1e3a8a; color white; font-weight 600; font-size 12px; text-transform uppercase; letter-spacing 0.4px.
+  th,td: padding 11px 14px; text-align left; border-bottom 1px solid #f1f5f9; font-size 13px.
+  tbody tr:nth-child(even): background #f8fafc. tbody tr:hover: background #eff6ff.
 
-RAG BADGES / PILLS:
-  — Green: background #22c55e | Amber: background #f59e0b | Red: background #ef4444
-  — Informational/Grey: background #64748b
-  — All: color white; padding 3px 10px; border-radius 12px; font-size 11px; font-weight 600; white-space nowrap
+RAG badges: Green #22c55e | Amber #f59e0b | Red #ef4444 | Informational #64748b.
+  All: color white; padding 3px 10px; border-radius 12px; font-size 11px; font-weight 600; white-space nowrap.
 
-ALERT PANEL (Section 8):
-  — Critical rows: left border 4px solid #ef4444; background #fff5f5
-  — Warning rows: left border 4px solid #f59e0b; background #fffdf0
-  — OK rows: left border 4px solid #22c55e; background #f0fdf4
+Alert rows: Critical — border-left 4px solid #ef4444; background #fff5f5.
+  Warning — border-left 4px solid #f59e0b; background #fffdf0.
+  OK — border-left 4px solid #22c55e; background #f0fdf4.
 
-MOM DELTA TEXT:
-  — Positive (undesirable e.g. CA-LPS increase): color #ef4444; font-weight 600
-  — Negative (desirable e.g. rejection rate drop): color #22c55e; font-weight 600
-  — Neutral / no threshold: color #64748b
-
-TWO-COLUMN LAYOUTS:
-  — display grid; grid-template-columns 3fr 2fr; gap 24px
-  — On narrower sections: grid-template-columns 1fr 1fr
-
-NO external stylesheets, no external scripts, no JavaScript of any kind.
-All CSS inline in a <style> block in <head>.
+MoM delta: undesirable increase → color #ef4444; font-weight 600.
+  Desirable decrease → color #22c55e; font-weight 600. Neutral → color #64748b.

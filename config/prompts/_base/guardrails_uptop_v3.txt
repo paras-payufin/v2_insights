@@ -1,161 +1,94 @@
 GUARDRAIL RULES — APPLY WITHOUT EXCEPTION
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 1 — START IMMEDIATELY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-First characters of response: <!DOCTYPE html>
-Last characters of response:  </html>
-Nothing before. Nothing after. No preamble, no commentary, no markdown fences.
-Writing raw HTML inline IS the deliverable — not a file attachment.
+RULE 1 — OUTPUT FORMAT
+First characters: <!DOCTYPE html>  |  Last characters: </html>
+Nothing before or after. No preamble, commentary, or markdown. Raw HTML is the deliverable.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE 2 — BANNED OPENING PHRASES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Never start with: "Let me", "I will", "Sure", "Certainly", "Here is", "Based on",
 any step announcement, task restatement, or planning language.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 3 — FILE IS THE ONLY SOURCE OF TRUTH
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Read every value exactly as it appears. Same numbers, same labels, same decimal places.
-Never round, adjust, or reformat raw file values. Never invent, estimate, or substitute.
-Anomalous-looking values: display as-is and add "(verify source data)".
+RULE 3 — SOURCE OF TRUTH
+Read all values exactly as they appear — same numbers, labels, decimal places.
+Never round, adjust, reformat, invent, or estimate raw file values.
+Anomalous values: display as-is, add "(verify source data)".
+Derived metrics: compute from raw counts.
+MoM delta: subtract UNROUNDED rates; round only the final delta.
+Avg Ticket: 1 Crore = 100 Lakhs. No other conversion.
 
-Derived metric rules:
-  — Always compute from raw file counts/amounts.
-  — MoM delta: subtract UNROUNDED rates; round only the FINAL delta.
-    ✗ Wrong:  15.36% − 13.16% = 2.20pp  (if 15.36 was a rounded display value)
-    ✓ Right:  15.3604% − 13.1607% = 2.1997pp → round → 2.20pp
-  — Avg Ticket: 1 Crore = 100 Lakhs. Never use any other conversion constant.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE 4 — MISSING DATA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Absent value → "—". Never estimate, fill, skip, or carry forward.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE 5 — SECTION COMPLIANCE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Render all 9 sections in exact order with exact headings.
 No merging, skipping, renaming, or adding sections.
 No disclaimers, AI notices, appendices, or placeholders.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE 6 — EXACT LABELS ONLY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Use only labels verbatim from the file for all segment names, feature names,
-approval method names, score bucket labels, and status names.
-Forbidden substitutions (examples):
-  ✗ "Auto Approval" for "BUREAU_SURROGATE"
-  ✗ "High Risk" for "DeepMid_08"
-  ✗ "300–349" for "(0.0, 0.201]"
+Use only verbatim file labels for all segment, feature, approval method,
+score bucket, and status names.
+✗ "Auto Approval" for "BUREAU_SURROGATE"
+✗ "High Risk" for "DeepMid_08"
+✗ "300–349" for "(0.0, 0.201]"
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 7 — VERIFY COUNTS BEFORE COMPUTING RATES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Confirm numerator and denominator from the same table before computing any rate.
+RULE 7 — VERIFY BEFORE COMPUTING
+Confirm numerator and denominator from the same table before any rate computation.
 Never hardcode a rate. Ambiguous denominator → "—".
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE 8 — NO CROSS-TABLE VALUE MIGRATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PSI → PSI table only. CSI → CSI table only. Funnel → pipeline table. Amounts → disbursal table.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE 9 — NO EXTERNAL DEPENDENCIES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-No external stylesheets. No external scripts. No CDN links. No JavaScript of any kind.
-No Chart.js. No Google Fonts. No external images or icons.
-All CSS must be inline in a <style> block in <head>.
-The file must render correctly with no internet connection.
+No external stylesheets, scripts, CDN links, or JavaScript of any kind.
+No Chart.js, Google Fonts, or external images.
+All CSS inline in <style> in <head>. Must render with no internet connection.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 10 — FULL-WIDTH LAYOUT — NO NARROW COLUMNS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The report must fill the full browser viewport width.
-  ✗ Do NOT set a max-width on the main wrapper below 1400px.
-  ✗ Do NOT center a narrow content column (e.g. max-width: 1040px centered).
-  ✓ Use padding (32px left/right) to prevent content touching the very edge.
-  ✓ All tables must be width: 100%.
-  ✓ KPI cards must span the full width in a single row using CSS Grid.
-  ✓ Multi-column sections use CSS Grid with fr units (not fixed pixel widths).
-Failure mode to avoid: the report looking like a narrow blog post centered on a wide screen.
+RULE 10 — FULL-WIDTH LAYOUT
+Report fills full browser viewport. No max-width below 1400px. No narrow centered column.
+Use 32px side padding. All tables: width 100%.
+KPI cards: full-width CSS Grid. Multi-column sections: CSS Grid with fr units.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 11 — PRE-STEPS ARE BINDING ON ALL SECTIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-All values from PRE-STEPS 1–5 are authoritative. No section may output a number,
-status, count, or ranking that contradicts any PRE-STEP result.
-If a section would differ from a PRE-STEP result, the PRE-STEP wins. Correct before writing.
+RULE 11 — PRE-STEPS ARE AUTHORITATIVE
+All PRE-STEP 1–5 values are authoritative. If any section would contradict a
+PRE-STEP result, the PRE-STEP wins. Correct before writing.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 12 — CSI THRESHOLD IS STRICTLY 0.25
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Any Disbursed CSI value above 0.25 is Unstable. Period.
-The following are all Unstable: 0.26, 0.40, 0.57, 0.66, 0.70, 0.81, 0.87, 1.02, 1.33.
-None of these are Marginal. Marginal = 0.10 to 0.25 only.
-If your CSI table has zero Unstable labels but multiple values exceed 0.25,
-you have applied the wrong threshold. Correct before any output.
-Self-check: count rows labelled Unstable → must equal U from PRE-STEP 3.
+RULE 12 — CSI THRESHOLD: STRICTLY 0.25
+> 0.25 → Unstable (Red) | 0.10–0.25 → Marginal (Amber) | < 0.10 → Stable (Green)
+Values above 0.25 are NEVER Marginal.
+Self-check: count rows labelled Unstable — must equal U from PRE-STEP 3.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 13 — REJECTION RATE BADGE: INCREASE ONLY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Rejection Rate badge triggered ONLY by a MoM increase exceeding 3pp.
-Any decrease → Green. Any increase ≤ 3pp → Green.
-  ✗ Never assign Amber/Red because the absolute rate is high.
-  ✗ Never assign Amber/Red because the rate declined.
-  ✓ Amber only: rate increased MoM by more than 3pp.
-  Example: prior=36.15%, current=33.74%, delta=−2.41pp → Green.
+RULE 13 — REJECTION RATE BADGE
+Amber ONLY if MoM rate increased > 3pp.
+Any decrease or increase ≤ 3pp → Green.
+Never Amber/Red due to absolute rate level.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 14 — AVG TICKET SIZE SANITY GATE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-After computing Avg Ticket for each month: Avg × count ÷ 100 must equal amount_cr ± 0.05.
-If this fails (result is 10× or 0.1× amount_cr) → conversion error → recompute.
-Most common error: using 10 instead of 100 as the Crore-to-Lakhs multiplier.
-If Avg Ticket exceeds 5 L for any month in this dataset → stop and recompute.
+RULE 14 — AVG TICKET SANITY CHECK
+After computing Avg Ticket: Avg × count ÷ 100 must equal amount_cr ± 0.05.
+Failure (result is 10× or 0.1× off) = conversion error → recompute using 1 Crore = 100 Lakhs.
+If any Avg Ticket exceeds 5.00 L → stop and recompute.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE 15 — MoM DELTA FROM UNROUNDED RATES ONLY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Always compute delta from full-precision rates derived from raw counts.
+Compute delta from full-precision rates derived from raw counts.
 Never subtract two already-rounded display percentages.
-  ✗ 15.36% − 13.16% = 2.20pp   ← wrong if 15.36 is a rounded display value
-  ✓ 880/5729*100 − 376/2857*100 = 15.3604 − 13.1607 = 2.1997 → round → 2.20pp
+✓ 880/5729×100 − 376/2857×100 = 15.3604 − 13.1607 = 2.1997 → round → 2.20pp
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 16 — TOP 3 RANKED BY CSI VALUE, NOT TABLE ORDER
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Top 3 = features with 3 highest Disbursed CSI values (sort all values descending, pick #1 #2 #3).
-  ✗ Not the first 3 rows of the table.
-  ✗ Not the 3 features with most concern by name.
-After choosing Top 3: confirm no excluded feature has a higher Disbursed CSI than your #3.
-If it does, rerank.
+RULE 16 — TOP 3 RANKED BY CSI VALUE
+Sort all Disbursed CSI values descending; pick the 3 highest.
+Not by table row order. After selecting, confirm no excluded feature ranks higher than #3.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE 17 — RISK SEGMENT VERIFICATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ABSENT = segment name not found anywhere in the Disbursed table.
-PRESENT = segment name found (even with 1 disbursal).
-Check each segment by exact name. Never infer from pattern or position.
-After building table: re-check every ABSENT flag. Shallow_03 ≠ Shallow_04 — check independently.
+ABSENT = exact segment name not found anywhere in Disbursed table.
+PRESENT = name found (even 1 disbursal). Check each name independently.
+Re-verify every ABSENT flag after building the table. Never confuse similar names (e.g. Shallow_03 ≠ Shallow_04).
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE 18 — ALERT SEVERITY IS NON-NEGOTIABLE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Status cell must exactly match the prompt's trigger definition.
-  Disbursed CSI > 0.25 → Status = "Critical". Never "Warning".
-  Approval method CC > 20% + Disbursed < 5% → Status = "Critical". Never "Warning".
-Do not downgrade severity based on context, analyst judgment, or magnitude of breach.
+Disbursed CSI > 0.25 → Status = "Critical". Never "Warning".
+Approval method CC > 20% + Disbursed < 5% → Status = "Critical". Never "Warning".
+Do not downgrade severity based on context, judgment, or magnitude of breach.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULE 19 — CC PSI AND CC CSI ARE ALWAYS EXCLUDED FROM FLAGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Credit Check PSI: label "Informational". No RAG badge. No alert. Never flagged.
-Credit Check CSI: shown as reference only. No badge. No colour. No alert. No comment on level.
-This applies regardless of how high the CC PSI or CC CSI value is.
+RULE 19 — CC PSI AND CC CSI ALWAYS EXCLUDED FROM FLAGS
+CC PSI: label "Informational". No RAG badge. No alert. Never flagged.
+CC CSI: shown as reference only. No badge. No colour. No alert. No comment on its level.
+This applies regardless of the CC PSI or CC CSI value.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Core principle: Pre-compute first. Read raw values unchanged. Derive correctly. Never invent.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
