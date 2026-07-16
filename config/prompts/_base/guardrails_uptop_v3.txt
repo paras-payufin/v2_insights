@@ -1,94 +1,27 @@
-GUARDRAIL RULES — APPLY WITHOUT EXCEPTION
+HTML envelope: Output only HTML beginning with <!DOCTYPE html> and ending with </html>.
 
-RULE 1 — OUTPUT FORMAT
-First characters: <!DOCTYPE html>  |  Last characters: </html>
-Nothing before or after. No preamble, commentary, or markdown. Raw HTML is the deliverable.
+File-only truth: Every raw value and label must come from the attached file. No external knowledge, estimates, invented values, or causal claims.
 
-RULE 2 — BANNED OPENING PHRASES
-Never start with: "Let me", "I will", "Sure", "Certainly", "Here is", "Based on",
-any step announcement, task restatement, or planning language.
+Missing-data rule: Missing, ambiguous, or non-comparable values must be —. Never fill, carry forward, or convert missing values into zero.
 
-RULE 3 — SOURCE OF TRUTH
-Read all values exactly as they appear — same numbers, labels, decimal places.
-Never round, adjust, reformat, invent, or estimate raw file values.
-Anomalous values: display as-is, add "(verify source data)".
-Derived metrics: compute from raw counts.
-MoM delta: subtract UNROUNDED rates; round only the final delta.
-Avg Ticket: 1 Crore = 100 Lakhs. No other conversion.
+Table binding: Use the nearest heading and table schema to identify each table. Never rely on assumed physical table numbers.
 
-RULE 4 — MISSING DATA
-Absent value → "—". Never estimate, fill, skip, or carry forward.
+Population integrity: Never combine values from different tables or populations. Use the local table denominator when it differs from the overall population.
 
-RULE 5 — SECTION COMPLIANCE
-Render all 9 sections in exact order with exact headings.
-No merging, skipping, renaming, or adding sections.
-No disclaimers, AI notices, appendices, or placeholders.
+Raw-value preservation: Copy source values exactly. Only calculated metrics may be formatted according to the calculation rules.
 
-RULE 6 — EXACT LABELS ONLY
-Use only verbatim file labels for all segment, feature, approval method,
-score bucket, and status names.
-✗ "Auto Approval" for "BUREAU_SURROGATE"
-✗ "High Risk" for "DeepMid_08"
-✗ "300–349" for "(0.0, 0.201]"
+Calculation precision: Use full precision internally. Round only final MoM deltas to 2 decimal places and Avg Ticket to 2 decimal places.
 
-RULE 7 — VERIFY BEFORE COMPUTING
-Confirm numerator and denominator from the same table before any rate computation.
-Never hardcode a rate. Ambiguous denominator → "—".
+Rate validation: Confirm numerator and denominator are from the same table before calculating any rate or percentage.
 
-RULE 8 — NO CROSS-TABLE VALUE MIGRATION
-PSI → PSI table only. CSI → CSI table only. Funnel → pipeline table. Amounts → disbursal table.
+CSI boundaries: >0.25 Unstable, 0.10–0.25 Marginal, <0.10 Stable. Exactly 0.25 is Marginal.
 
-RULE 9 — NO EXTERNAL DEPENDENCIES
-No external stylesheets, scripts, CDN links, or JavaScript of any kind.
-No Chart.js, Google Fonts, or external images.
-All CSS inline in <style> in <head>. Must render with no internet connection.
+Severity rules: Disbursed CSI above 0.25 and approval methods meeting both threshold conditions are always Critical.
 
-RULE 10 — FULL-WIDTH LAYOUT
-Report fills full browser viewport. No max-width below 1400px. No narrow centered column.
-Use 32px side padding. All tables: width 100%.
-KPI cards: full-width CSS Grid. Multi-column sections: CSS Grid with fr units.
+Excluded metrics: Credit Check PSI is Informational. Credit Check CSI is reference-only. Neither may create an alert or affect Overall RAG.
 
-RULE 11 — PRE-STEPS ARE AUTHORITATIVE
-All PRE-STEP 1–5 values are authoritative. If any section would contradict a
-PRE-STEP result, the PRE-STEP wins. Correct before writing.
+Exact matching: Segment, bucket, feature, method, and status names must match source strings exactly. Similar labels must never be merged.
 
-RULE 12 — CSI THRESHOLD: STRICTLY 0.25
-> 0.25 → Unstable (Red) | 0.10–0.25 → Marginal (Amber) | < 0.10 → Stable (Green)
-Values above 0.25 are NEVER Marginal.
-Self-check: count rows labelled Unstable — must equal U from PRE-STEP 3.
+Evidence-based narrative: Every insight must describe only a measured value, calculated change, threshold breach, or direct table comparison.
 
-RULE 13 — REJECTION RATE BADGE
-Amber ONLY if MoM rate increased > 3pp.
-Any decrease or increase ≤ 3pp → Green.
-Never Amber/Red due to absolute rate level.
-
-RULE 14 — AVG TICKET SANITY CHECK
-After computing Avg Ticket: Avg × count ÷ 100 must equal amount_cr ± 0.05.
-Failure (result is 10× or 0.1× off) = conversion error → recompute using 1 Crore = 100 Lakhs.
-If any Avg Ticket exceeds 5.00 L → stop and recompute.
-
-RULE 15 — MoM DELTA FROM UNROUNDED RATES ONLY
-Compute delta from full-precision rates derived from raw counts.
-Never subtract two already-rounded display percentages.
-✓ 880/5729×100 − 376/2857×100 = 15.3604 − 13.1607 = 2.1997 → round → 2.20pp
-
-RULE 16 — TOP 3 RANKED BY CSI VALUE
-Sort all Disbursed CSI values descending; pick the 3 highest.
-Not by table row order. After selecting, confirm no excluded feature ranks higher than #3.
-
-RULE 17 — RISK SEGMENT VERIFICATION
-ABSENT = exact segment name not found anywhere in Disbursed table.
-PRESENT = name found (even 1 disbursal). Check each name independently.
-Re-verify every ABSENT flag after building the table. Never confuse similar names (e.g. Shallow_03 ≠ Shallow_04).
-
-RULE 18 — ALERT SEVERITY IS NON-NEGOTIABLE
-Disbursed CSI > 0.25 → Status = "Critical". Never "Warning".
-Approval method CC > 20% + Disbursed < 5% → Status = "Critical". Never "Warning".
-Do not downgrade severity based on context, judgment, or magnitude of breach.
-
-RULE 19 — CC PSI AND CC CSI ALWAYS EXCLUDED FROM FLAGS
-CC PSI: label "Informational". No RAG badge. No alert. Never flagged.
-CC CSI: shown as reference only. No badge. No colour. No alert. No comment on its level.
-This applies regardless of the CC PSI or CC CSI value.
-
-Core principle: Pre-compute first. Read raw values unchanged. Derive correctly. Never invent.
+Final validation: Before output, verify all nine sections, all required rows, CSI count reconciliation, Top 3 ranking, absent-category checks, average-ticket sanity checks, RAG rules, and absence of external dependencies.

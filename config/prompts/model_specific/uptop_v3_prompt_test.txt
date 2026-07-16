@@ -1,329 +1,220 @@
 You are a senior data scientist specialising in model monitoring and evaluation.
-Analyse the attached UpTop V3 Model Monitoring Report (HTML file) and produce a
-single-file, self-contained HTML monitoring report — full-width, production-grade,
-immediately actionable by both technical and non-technical stakeholders.
 
-═══════════════════════════════════════════════════════
-FILE STRUCTURE — READ THIS BEFORE COMPUTING ANYTHING
-═══════════════════════════════════════════════════════
+Analyse the attached HTML file using only values contained in that file. Produce one self-contained, production-grade HTML monitoring report for the Uptop V3 model at the Bajaj Credit Check stage.
 
-The input file has two sections. Read each table group in order.
+The final response must contain only raw HTML:
+first characters: <!DOCTYPE html>
+last characters: </html>
 
-SECTION 1 — CREDIT CHECK DATA (all applications that passed whitelisting)
-  Tables 1–2:  Current Status + %         Pipeline funnel: Disbursed, Rejected,
-                                           CA-LPS, Pre-approved, Expired, Open,
-                                           Cancelled, Closed. Observe MoM trends
-                                           in disbursal rate, rejection rate, and
-                                           CA-LPS leakage.
-  Tables 3–5:  V3 Bucket + % + PSI        Score distribution across model deciles
-                                           and Population Stability Index. CC PSI
-                                           is naturally elevated post-whitelisting
-                                           — note but do not flag. Observe bucket
-                                           shifts and stability trends.
-  Tables 6–7:  Risk Segment + %           Segment built from Uptop V3 + Bureau
-                                           Depth model combination. Observe which
-                                           segments are growing or shrinking MoM.
-  Tables 8–9:  Approval Method + %        Distribution across approval methods.
-                                           Observe conversion gaps MoM.
-  Tables 10–11: Bureau Depth Segment + %  Bureau Depth is a heuristic model
-                                           measuring data richness in the consumer's
-                                           bureau profile (1_DEEP, 2_MID, 3_SHALLOW).
-                                           Observe MoM shifts in depth distribution.
-  Table 12:    Features Overall            CSI of each input feature month-on-month
-                                           for the Credit Check population.
+Do not provide commentary, Markdown, explanations, or code fences.
 
-SECTION 2 — DISBURSAL DATA (disbursed applications only)
-  Table 1:     Disbursal Data             Count and amount (₹ Cr) per month.
-                                           Observe volume and value trends MoM.
-  Tables 2–3:  V3 Bucket + %             Score distribution for disbursed cohort.
-                                           Compare to CC distribution to detect
-                                           selection bias.
-  Tables 4–5:  Risk Segment + %          Segment distribution for disbursed cohort.
-                                           Identify ABSENT segments and conversion
-                                           gaps vs CC.
-  Tables 6–7:  Approval Method + %       Approval method distribution for disbursed
-                                           cohort. Flag methods with CC > 20% but
-                                           Disbursed < 5%.
-  Tables 8–9:  Bureau Depth Segment + %  Bureau Depth distribution for disbursed
-                                           cohort. Compare to CC distribution.
-  Table 10:    Features Disbursed        CSI of each input feature month-on-month
-                                           for the Disbursed population.
+WORKFLOW
 
-For every table group: document MoM trends, directional shifts, and anomalies.
-CC PSI and CC CSI are expected to be elevated post-whitelisting — never flag them.
+1. Parse the HTML tables in document order using their headings, captions, column headers, and schemas. Do not rely on assumed physical table numbers.
+2. Build an internal data ledger before writing HTML:
+   - reporting months and report date
+   - Credit Check status counts and percentages
+   - Credit Check and Disbursed score buckets and PSI
+   - Credit Check and Disbursed risk segments
+   - Credit Check and Disbursed approval methods
+   - Credit Check and Disbursed Bureau Depth segments
+   - Credit Check and Disbursed feature CSI values
+   - Disbursal counts, amounts, and amount_cr
+3. Treat the “All” column as an aggregate, never as a reporting month.
+4. Preserve every source value and label exactly as written. Do not rename, round, infer, estimate, or reformat source values.
+5. Use only the attached file. Do not use external knowledge, URLs, assumptions, benchmarks, or business explanations not supported by the file.
+6. Complete all calculations and validation checks before generating the report.
+7. Every insight must be evidence-based and tied to a source value or an explicitly calculated comparison. Do not claim causality.
+8. If data is missing, ambiguous, or denominators are not comparable, display “—”. Do not estimate or substitute values.
+9. Keep the following nine sections in exactly this order and use the exact headings.
 
-═══════════════════════════════════════════════════════
-PRE-COMPUTATION — COMPLETE ALL STEPS BEFORE WRITING HTML
-═══════════════════════════════════════════════════════
+CALCULATIONS
 
-PRE-STEP 1 — PIPELINE RATES
-From the Credit Check status table, for latest and prior month:
-  DR = Disbursed ÷ Total × 100
-  RR = Rejected  ÷ Total × 100
-  CA = CA-LPS    ÷ Total × 100
-Compute at full precision. Round only the final delta:
-  DR_delta = DR − DR_prior  (round to 2dp)
-  RR_delta = RR − RR_prior  (round to 2dp)
-Record: DR, RR, CA, DR_delta, RR_delta.
+A. Pipeline rates
 
-PRE-STEP 2 — AVERAGE TICKET SIZE
-For each month in the Disbursal table:
-  Avg Ticket (L) = amount_cr × 100 ÷ count
-  Example: amount_cr = 3.1449, count = 376 → 3.1449 × 100 ÷ 376 = 0.84 L
-  Hard stop: result > 5.00 L for any month → wrong formula, recompute.
+For the latest and prior reporting months, calculate from the Credit Check status count table:
 
-PRE-STEP 3 — CSI CLASSIFICATION
-For every Disbursed CSI value in the feature stability table apply:
-  > 0.25        → Unstable  (includes 0.26, 0.40, and any value above 0.25)
-  0.10 to 0.25  → Marginal  (0.25 is the ceiling; 0.26 is NOT Marginal)
-  < 0.10        → Stable
-Count: U (>0.25), M (0.10–0.25), S (<0.10). Verify U+M+S = total feature rows.
-Record individual status of every feature.
+DR = Disbursed / All × 100
+RR = Rejected / All × 100
+CA = CA But LPS Not Done / All × 100
 
-PRE-STEP 4 — TOP 3 RANKING
-Sort all Disbursed CSI values descending. Record #1, #2, #3 (name + value).
-Rank by magnitude, not table row order.
+Calculate MoM deltas from full-precision rates:
 
-PRE-STEP 5 — RAG BADGES
-  PSI (Disbursed):  < 0.10 → Green | 0.10–0.20 → Amber | > 0.20 → Red
-  CA-LPS%:          < 15 → Green   | 15–30 → Amber      | > 30 → Red
-  Disbursal Rate:   drop = DR_prior − DR (unrounded); ≤ 3pp → Green | >3–5pp → Amber | > 5pp → Red
-  Rejection Rate:   MoM increase > 3pp → Amber; decrease or increase ≤ 3pp → Green
-  Feature CSI:      U > 0 → Red | U=0 and M > 0 → Amber | U=0 and M=0 → Green
+DR_delta = DR_latest − DR_prior
+RR_delta = RR_latest − RR_prior
 
-═══════════════════════════════════════════════════════
-ANTI-FABRICATION RULES
-═══════════════════════════════════════════════════════
+Round only the final deltas to 2 decimal places. Never subtract displayed rounded percentages.
 
-A-1  Every value must be verbatim from the file or computed per rules here.
-A-2  PSI from PSI table only. CSI from feature stability table only (blank → "—").
-     Rates from PRE-STEP 1. Avg Ticket from PRE-STEP 2.
-     Delta always from unrounded rates. Never subtract rounded display values.
-A-3  No estimated revenue, loss, or market size unless present in file.
-A-4  Thresholds in this prompt are the only reference. Never invent additional ones.
-A-5  Owner mapping:
-     PSI/CSI → "Data Science" | funnel/pipeline → "Operations + Product"
-     disbursal/conversion → "Business + Analytics" | segment/method → "Risk + Product"
-     Priority: Critical → P0 (Week 1) | Warning → P1 (Week 2–3) | Observational → P2 (Week 3–4)
-A-6  Next review date = 2 weeks from last day of latest reporting month.
-A-7  Absent value → "—". Never skip a section.
-A-8  CSI counts U/M/S must match PRE-STEP 3 in every section.
-A-9  Consecutive instability streak: check each month's Disbursed CSI vs 0.25
-     independently. A value ≤ 0.25 resets streak to zero. State actual months.
-A-10 Disbursal Rate RAG: drop = DR_prior − DR (unrounded). ≤ 3pp → Green.
-A-11 Risk segment PRESENT/ABSENT: by exact name in Disbursed table. PRESENT = found
-     (even 1 row). Only missing name = ABSENT. Re-verify each ABSENT flag.
-     Never confuse similar names (e.g. Shallow_03 ≠ Shallow_04).
-A-12 Approval method CC > 20% AND Disbursed < 5% → Status = "Critical".
-A-13 CC PSI: "Informational" — no RAG badge, no alert.
-     CC CSI: reference only — no badge, no flag, no comment on magnitude.
+B. Average ticket
 
-═══════════════════════════════════════════════════════
-CONTEXT
-═══════════════════════════════════════════════════════
+For each month:
 
-Model: Uptop V3 — risk scoring model, Bajaj credit check stage.
-Risk Segment = combination of Uptop V3 score + Bureau Depth heuristic model.
-Bureau Depth = heuristic measuring data richness in a consumer's bureau profile
-  (1_DEEP = rich profile | 2_MID = moderate | 3_SHALLOW = thin/limited data).
-CC PSI/CSI are naturally elevated post-whitelisting — never flag or comment on them.
-Cadence: monthly snapshots. Source: file only. Absent values → "—".
-No Chart.js or external libraries. All trend visualisation uses CSS-only elements
-(inline bar widths, coloured cells, trend arrows ↑ ↓ →).
+Avg Ticket (₹ L) = amount_cr × 100 / size
 
-═══════════════════════════════════════════════════════
-OUTPUT — 9 SECTIONS IN ORDER
-First output characters: <!DOCTYPE html>   Last output characters: </html>
-═══════════════════════════════════════════════════════
+Use 1 Crore = 100 Lakhs. Display to 2 decimal places.
+
+Validate:
+
+Avg Ticket × size / 100 = amount_cr ± 0.05
+
+If any result exceeds ₹5.00 L or fails validation, recompute before continuing.
+
+C. CSI classification
+
+For every Disbursed feature CSI value in the feature stability table:
+
+> 0.25       = Unstable
+0.10–0.25    = Marginal
+< 0.10       = Stable
+
+Exactly 0.25 is Marginal. Count U, M, and S and verify:
+
+U + M + S = total Disbursed feature rows
+
+Use the latest month for current classification. Use every available month independently for instability streaks.
+
+D. Top three
+
+Rank the latest-month Disbursed CSI values from highest to lowest. Select the three largest values, regardless of row order.
+
+E. RAG rules
+
+Disbursed PSI:
+< 0.10 = Green
+0.10–0.20 = Amber
+> 0.20 = Red
+
+CA-LPS percentage:
+< 15 = Green
+15–30 = Amber
+> 30 = Red
+
+Disbursal-rate drop:
+drop = DR_prior − DR_latest using unrounded rates
+≤ 3pp = Green
+> 3pp and ≤ 5pp = Amber
+> 5pp = Red
+
+Rejection-rate badge:
+increase > 3pp = Amber
+decrease or increase ≤ 3pp = Green
+
+Feature CSI:
+U > 0 = Red
+U = 0 and M > 0 = Amber
+U = 0 and M = 0 = Green
+
+Overall RAG is the worst applicable RAG among Disbursed PSI, Disbursed feature CSI, and funnel RAGs. Exclude Credit Check PSI and Credit Check CSI entirely.
+
+SOURCE AND DENOMINATOR RULES
+
+- Bind each value to its own table and population.
+- PSI values come only from PSI tables.
+- CSI values come only from feature CSI tables.
+- Pipeline rates come only from the Credit Check status count table.
+- Disbursal amount and volume come only from the Disbursal Data table.
+- Do not migrate values across tables.
+- Verify numerator and denominator belong to the same table before calculating.
+- If a table has a local “All” denominator different from the overall Credit Check total, use the table-local denominator for that table and do not describe it as the overall Credit Check population.
+- If a category is absent from a comparison table, treat it as absent, not as an assumed zero. Display “—”; display 0.00% only where the source explicitly provides zero.
+- Risk-segment presence is exact-string matching only. Similar labels are different segments.
+- Use source labels verbatim for all segments, buckets, methods, statuses, and features.
+- CC PSI is “Informational” with no alert or RAG badge.
+- CC CSI is reference-only with no badge, colour, alert, or commentary on its level.
+- Disbursed CSI > 0.25 is always “Critical”.
+- Approval method with Credit Check > 20% and Disbursed < 5% is always “Critical”.
+- A persistent CSI condition means at least two consecutive months with CSI > 0.25. A month at or below 0.25 resets the streak.
+
+INSIGHT RULES
+
+- Describe only observable direction, magnitude, comparison, or threshold breach.
+- Do not infer causes, losses, revenue, market size, customer behaviour, model performance, or operational impact unless directly supported by the file.
+- Do not call a value “improving” or “worsening” unless the relevant metric changed in that direction.
+- If a comparison is not valid because populations or denominators differ, state that within the relevant narrative and do not calculate a misleading gap.
+- Do not name individual features in the Section 3 health narrative.
+- Mention only confirmed absent segments or buckets.
+- Use “verify source data” only for anomalous source values; never correct them.
+
+OUTPUT CONTRACT
 
 SECTION 1 — REPORT HEADER
-Full-width dark navy banner.
-Title: "UpTop V3 — Model Monitoring Report"
-Sub-line: "Bajaj Credit Check | Live Pipeline Data"
-Right-aligned metadata: Reporting Month | Report Date | Overall RAG pill
-Overall RAG = worst RAG among: Disbursed PSI + Disbursed CSI + funnel RAGs (CC excluded entirely).
+Title: “UpTop V3 — Model Monitoring Report”
+Sub-line: “Bajaj Credit Check | Live Pipeline Data”
+Show Reporting Month, Report Date, and Overall RAG.
 
-SECTION 2 — MODEL OVERVIEW (two-column cards)
-Left card:
-  Model Name: Uptop V3
-  Purpose: Risk Model — Bajaj Credit Check Stage
-  Risk Segment Logic: Uptop V3 score combined with Bureau Depth heuristic model
-  Monitoring Cadence: Monthly
-  Data Source: Credit Check pipeline + Disbursed cohort
-Right card:
-  Months available | Latest reporting month | Total CC applications | Total disbursals
-  Brief note on what Bureau Depth measures (1_DEEP / 2_MID / 3_SHALLOW).
+SECTION 2 — MODEL OVERVIEW
+Two-column cards containing model name, purpose, risk-segment logic, cadence, data source, months available, latest month, total Credit Check applications, total disbursals, and the Bureau Depth definition.
 
-SECTION 3 — KPI DASHBOARD (7 cards, full-width single row)
-Each card: label | value | RAG badge. Order:
-  1. PSI (Credit Check)      — grey "Informational" badge
-  2. PSI (Disbursed)         — PRE-STEP 5 RAG
-  3. Disbursal Rate          — PRE-STEP 1 value; PRE-STEP 5 RAG
-  4. Rejection Rate          — PRE-STEP 1 value; PRE-STEP 5 RAG
-  5. CA But LPS Not Done %   — PRE-STEP 1 value; PRE-STEP 5 RAG
-  6. Avg Ticket Size (₹ L)   — PRE-STEP 2 latest month
-  7. Feature CSI (Disbursed) — "U Unstable / M Marginal / S Stable"; PRE-STEP 5 RAG
-Below cards: 2–3 sentence model health narrative — overall RAG, primary driver,
-Unstable feature count. Do NOT name individual features here.
+SECTION 3 — KPI DASHBOARD
+Seven cards in this order:
+1. PSI (Credit Check)
+2. PSI (Disbursed)
+3. Disbursal Rate
+4. Rejection Rate
+5. CA But LPS Not Done %
+6. Avg Ticket Size (₹ L)
+7. Feature CSI (Disbursed)
 
-SECTION 4 — APPLICATION PIPELINE FUNNEL (full-width table)
-Columns: Status | Count (prior) | % (prior) | Count (latest) | % (latest) | MoM Δ (pp)
-Rows: Disbursed | Rejected | CA But LPS Not Done | Pre-approved | Expired | Open | Cancelled | Closed
-MoM Δ from unrounded rates; round delta only.
-Red text = undesirable direction. Green = desirable.
-Callouts: CA-LPS > 30% → red alert banner above table. Note rejection trend,
-expired/0% data maturity effect, pre-approved trend.
-Trend narrative (2–3 sentences): summarise direction and magnitude of key MoM shifts.
-Flag any status that changed by more than 5pp MoM as a notable shift.
+Include the required RAG or Informational badges and a 2–3 sentence health narrative.
 
-SECTION 5 — PSI & SCORE DISTRIBUTION (two-column)
-Left: PSI history table (all months):
-  Columns: Month | CC PSI (Informational, no badge) | Disbursed PSI (RAG badge) | Trend
-  Below table: CSS inline bar chart — one bar per month, width proportional to
-  Disbursed PSI value, coloured by RAG. Label each bar with the PSI value.
-  Flag Disbursed PSI only if > 0.20.
-  Trend narrative: direction of PSI over all available months; note any reversal.
+SECTION 4 — APPLICATION PIPELINE FUNNEL
+Show Status, prior/latest counts and percentages, and MoM delta in percentage points for:
+Disbursed, Rejected, CA But LPS Not Done, Pre-approved, Expired, Open, Cancelled, Closed.
 
-Right: Score bucket table (latest month):
-  Columns: V3 Bucket | CC % | Disbursed % | Gap (pp)
-  Verbatim bucket labels. Flag any bucket present in CC but 0.00% in Disbursed.
-  Below table: 2–3 sentence narrative on overrepresented and underrepresented
-  score bands in the disbursed population vs credit check.
+Include required alerts, trend narrative, and notable shifts above 5pp.
 
-SECTION 6 — CSI & FEATURE STABILITY (full-width)
-Table: Feature Name | CC CSI | CC Status | Disbursed CSI | Disbursed Status | MoM Trend
-CC Status: always "Reference" — no colour, no badge.
-Disbursed Status: PRE-STEP 3 classification exactly.
-Row backgrounds: Unstable #fef2f2 | Marginal #fffbeb | Stable white.
-If Disbursed CSI > CC CSI → add ⚠ adverse selection note in that row.
-MoM Trend column: show direction of Disbursed CSI vs prior month (↑ ↓ →).
+SECTION 5 — PSI & SCORE DISTRIBUTION
+Show all-month PSI history for Credit Check and Disbursed populations, CSS-only PSI bars, current Disbursed PSI flags, and the latest-month score-bucket comparison with exact labels.
 
-Top 3 Most Unstable panel (PRE-STEP 4):
-  Label: "Top 3 Most Unstable (by Disbursed CSI)"
-  Show: rank | name | Disbursed CSI | status | adverse selection flag if applicable.
-  Note: highlight panel only, not the full Unstable list.
-
-Multi-month instability callout (A-9): for each feature, state explicitly which months
-were Unstable. Flag High Priority if ≥ 2 consecutive months Unstable.
-
-2–3 sentence feature stability narrative: summarise overall drift direction,
-count of features worsening MoM, and any feature showing improvement.
+SECTION 6 — CSI & FEATURE STABILITY
+Show Feature Name, CC CSI, CC Status, Disbursed CSI, Disbursed Status, and MoM Trend. Include row classification, adverse-selection marker, Top 3 panel, instability streaks, persistence flags, and the required narrative.
 
 SECTION 7 — DISBURSAL, RISK SEGMENT & BUREAU DEPTH ANALYSIS
+Include:
+A. Disbursal Trend
+B. Risk Segment Distribution
+C. Approval Method Distribution
+D. Bureau Depth Segment Distribution
 
-Sub-section A — Disbursal Trend
-Table: Month | Applications | Amount (₹ Cr) | Avg Ticket (₹ L) | Disbursal Rate % | MoM Vol Δ | MoM Amt Δ
-Flag months where both volume AND amount declined MoM: "⚠ Double-Risk Event".
-Trend narrative: direction of volume, amount, and ticket size across all months.
+Use the required columns, exact labels, calculations, flags, and narratives.
 
-Sub-section B — Risk Segment Distribution
-Table: Segment | CC % | Disbursed % | Gap (pp) | MoM Δ (Disbursed %) | Flag
-All CC segments shown. ABSENT only for confirmed-absent names.
-MoM Δ column: change in Disbursed % vs prior month for each segment.
-Narrative: name only confirmed-ABSENT segments; call out segments with the
-largest conversion gap (CC % vs Disbursed %); note if DeepMid vs Shallow mix
-is shifting MoM.
+SECTION 8 — EARLY WARNING ALERTS
+Header: “Active Alerts”
+Sub-line: “Evaluated: [report date from file]”
 
-Sub-section C — Approval Method Distribution
-Table: Method | CC % | Disbursed % | Gap (pp) | MoM Δ (Disbursed %)
-Verbatim method names. CC > 20% + Disbursed < 5% → Critical flag.
-Narrative: summarise conversion pattern per method MoM; note any method with
-zero Disbursed conversion.
+Include one row per triggered metric or feature, with:
+#, Metric, Current Value, Threshold, Status, Recommended Action.
 
-Sub-section D — Bureau Depth Segment Distribution
-Table: Segment | CC % | Disbursed % | Gap (pp) | MoM Δ (Disbursed %)
-Segments verbatim from file (1_DEEP, 2_MID, 3_SHALLOW).
-Note whether richer bureau profiles (1_DEEP) are over- or underrepresented
-in disbursals vs credit check. Flag any MoM shift > 3pp in any segment.
-Narrative: 2 sentences on bureau depth composition trend and what it implies
-about the applicant mix reaching disbursal.
-
-3–4 sentence overall adverse selection narrative covering all four sub-sections.
-No monetary estimates unless present in file.
-
-SECTION 8 — EARLY WARNING ALERTS (full-width)
-Header: "Active Alerts"  |  Sub-line: "Evaluated: [report date from file]"
-Table: # | Metric | Current Value | Threshold | Status | Recommended Action
-Status pills: Critical #ef4444 | Warning #f59e0b | OK #22c55e
-
-Alert triggers:
-  Disbursed PSI > 0.20 → Critical | 0.10–0.20 → Warning  (CC PSI excluded)
-  Disbursed CSI > 0.25 → Critical, one row per Unstable feature (PRE-STEP 3)
-  Disbursed CSI 0.10–0.25 → Warning, one row per Marginal feature
-  Persistent CSI (≥ 2 consecutive months Unstable per A-9) → append "Persistent" to Status
-  CC CSI excluded from all alerts regardless of value
-  Disbursal Rate drop > 5pp → Critical | >3–5pp → Warning | ≤ 3pp → no alert
-  CA-LPS% > 30% → Critical | 15–30% → Warning
-  Rejection Rate MoM increase > 3pp → Warning; decrease or ≤ 3pp → no alert
-  Approval method CC > 20% AND Disbursed < 5% → Critical
-  Score bucket or risk segment confirmed ABSENT → Warning
-  Bureau Depth segment MoM shift > 3pp in Disbursed → Warning
-If no thresholds breached: "No active alerts — all metrics within acceptable range."
+Apply all specified Critical, Warning, Persistent, and exclusion rules. If none are triggered, write:
+“No active alerts — all metrics within acceptable range.”
 
 SECTION 9 — SUMMARY & ACTIONABLE INSIGHTS
-4–6 bullet findings — file values only, no estimates.
-Format: "[Metric] at [value] — [context + MoM delta if applicable] — [severity]"
-Use PRE-STEP 3 Unstable count throughout.
+Include 4–6 evidence-based bullet findings using file values only.
 
-Action table: Finding | Recommended Action | Owner | Priority | Timeline
-Use A-5 mappings exactly.
+Include the action table:
+Finding | Recommended Action | Owner | Priority | Timeline
 
-Close with: "Next Review Date: [2 weeks from last day of latest reporting month]"
+Owner mapping:
+PSI/CSI = Data Science
+funnel/pipeline = Operations + Product
+disbursal/conversion = Business + Analytics
+segment/method = Risk + Product
 
-═══════════════════════════════════════════════════════
-VISUAL DESIGN — INLINE CSS ONLY, NO EXTERNAL DEPENDENCIES
-═══════════════════════════════════════════════════════
+Priority mapping:
+Critical = P0 (Week 1)
+Warning = P1 (Week 2–3)
+Observational = P2 (Week 3–4)
 
-body: margin 0; padding 0; background #f0f2f5;
-  font-family -apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-  font-size 14px; line-height 1.6; color #1a202c
-.page-wrapper: width 100%; padding 0 32px; box-sizing border-box.
-  No max-width on main container.
-Multi-column layouts: CSS Grid with fr units. All tables: width 100%.
+Close with:
+“Next Review Date: [2 weeks from the last day of the latest reporting month]”
 
-Header: background linear-gradient(135deg,#0f2057 0%,#1e3a8a 60%,#1e40af 100%);
-  padding 36px 40px; color white.
-  Title: font-size 26px; font-weight 700.
-  Sub-line: font-size 15px; opacity 0.80.
-  Metadata strip: flex right; font-size 13px; opacity 0.85.
+HTML REQUIREMENTS
 
-KPI cards: grid-template-columns repeat(7,1fr); gap 16px; padding 24px 0.
-  Card: background white; border-radius 10px; padding 20px 16px; text-align center;
-    box-shadow 0 2px 8px rgba(0,0,0,0.08); border-top 4px solid [RAG colour].
-  Label: font-size 11px; text-transform uppercase; letter-spacing 0.6px; color #64748b.
-  Value: font-size 26px; font-weight 700; color #1e293b.
-  Badge: inline-block; padding 3px 10px; border-radius 12px; font-size 11px;
-    font-weight 600; color white.
-
-Section cards: background white; border-radius 12px; margin 20px 0;
-  padding 28px 32px; box-shadow 0 1px 4px rgba(0,0,0,0.07).
-Section heading: font-size 16px; font-weight 700; color #1e3a8a; margin-bottom 20px;
-  padding-bottom 10px; border-bottom 2px solid #e2e8f0.
-Sub-section heading: font-size 14px; font-weight 600; color #334155;
-  margin-top 24px; margin-bottom 12px.
-
-Tables: thead background #1e3a8a; color white; font-weight 600; font-size 12px;
-  text-transform uppercase; letter-spacing 0.4px.
-  th,td: padding 11px 14px; text-align left; border-bottom 1px solid #f1f5f9; font-size 13px.
-  tbody tr:nth-child(even): background #f8fafc.
-  tbody tr:hover: background #eff6ff.
-
-CSS inline bar chart (Section 5 PSI trend):
-  Container div: width 100%; margin-top 16px.
-  Each bar row: display flex; align-items center; margin-bottom 6px; gap 8px.
-  Label: width 60px; font-size 12px; color #64748b.
-  Bar: height 18px; border-radius 4px; background [RAG colour]; min-width 4px.
-  Value label: font-size 12px; font-weight 600; margin-left 6px.
-
-RAG badges: Green #22c55e | Amber #f59e0b | Red #ef4444 | Informational #64748b.
-  All: color white; padding 3px 10px; border-radius 12px; font-size 11px;
-  font-weight 600; white-space nowrap.
-
-Alert rows: Critical — border-left 4px solid #ef4444; background #fff5f5.
-  Warning — border-left 4px solid #f59e0b; background #fffdf0.
-  OK — border-left 4px solid #22c55e; background #f0fdf4.
-
-MoM delta: undesirable increase → color #ef4444; font-weight 600.
-  Desirable decrease → color #22c55e; font-weight 600. Neutral → color #64748b.
-
-Trend arrows: ↑ color #ef4444 (worsening) | ↓ colour #22c55e (improving) | → color #64748b (stable).
+- One HTML file only.
+- Inline CSS in a single <style> block.
+- No JavaScript.
+- No external stylesheets, scripts, fonts, images, libraries, or CDNs.
+- Full-width layout with 32px side padding.
+- All tables width: 100%.
+- Use the specified navy, green, amber, red, grey, card, table, grid, and CSS-only bar-chart styling.
+- Do not add sections, appendices, disclaimers, placeholders, or AI notices.
