@@ -1,82 +1,43 @@
-GUARDRAIL RULES — APPLY WITHOUT EXCEPTION
+GUARDRAILS — JSON-DRIVEN REPORT (V1)
 
-RULE 1 — OUTPUT FORMAT
-First characters: <!DOCTYPE html>  |  Last characters: </html>
-Nothing before or after. No preamble, commentary, or markdown. Raw HTML is the deliverable.
+1. SOURCE LOCK
+Use the directly attached JSON file as the only source of truth; it is the supplied, authoritative JSON input. It is already calculated: never recalculate, derive, round, normalize, reinterpret, correct, or alter any precomputed value. Do not merge values across sections. Preserve every raw JSON label, status, number, precision, and display value exactly. null, missing, or unavailable values render as —. Never invent insights, thresholds, causes, owners, financial impact, dates, actions, or explanations; causal claims are forbidden unless explicitly present in JSON.
 
-RULE 2 — BANNED OPENING PHRASES
-Never start with: "Let me", "I will", "Sure", "Certainly", "Here is", "Based on",
-any step announcement, task restatement, or planning language.
+Use these top-level keys exactly and only for their corresponding content:
+overall_rag, kpis, pipeline_funnel, psi_history, score_buckets, features, top_3_unstable, disbursal_trend, risk_segments, approval_methods, bureau_depth_segments, alerts.
 
-RULE 3 — SOURCE OF TRUTH
-The attached mmr_calculated.json is the sole source of truth.
-Use values exactly as they appear — same numbers, labels, decimal places, RAG badges.
-Never recompute rates, CSI classifications, RAG badges, alert thresholds, or next_review_date.
-Never invent, estimate, or adjust numeric values.
+2. OUTPUT CONTRACT
+Output raw HTML only. The first characters must be <!DOCTYPE html> and the final characters must be </html>. No text before or after, no markdown or code fences, no external dependencies, no CDN, no external stylesheet, no images, and no JavaScript. Put CSS in an inline <style> block; use CSS only. The report must render offline and use a full-width layout: viewport-spanning wrapper, padding for margins, width:100% tables, and CSS Grid with fr units (no narrow centered column or restrictive max-width).
 
-RULE 4 — MISSING DATA
-Absent / null value → "—". Never estimate, fill, skip, or carry forward.
+3. NINE SECTIONS — EXACT ORDER
+Render all nine sections, in this order, without merging, skipping, renaming, adding, appendices, disclaimers, or placeholders:
+1) REPORT HEADER
+2) MODEL OVERVIEW
+3) KPI DASHBOARD
+4) APPLICATION PIPELINE FUNNEL
+5) PSI & SCORE DISTRIBUTION
+6) CSI & FEATURE STABILITY
+7) DISBURSAL & RISK SEGMENT ANALYSIS
+8) EARLY WARNING ALERTS
+9) SUMMARY & ACTIONABLE INSIGHTS
+Use the JSON values directly in the section to which they belong. Never move a value between tables or sections.
 
-RULE 5 — SECTION COMPLIANCE
-Render all 9 sections in exact order with exact headings.
-No merging, skipping, renaming, or adding sections.
-No disclaimers, AI notices, appendices, or placeholders.
+4. EXACT DATA MAPPING AND EXCLUSIONS
+- Header/overview/KPI overall status: overall_rag and the supplied metadata only when present in the input.
+- KPI dashboard: kpis exactly; do not recompute its counts, RAGs, deltas, or summaries.
+- Funnel: pipeline_funnel exactly, including status labels, months, counts, percentages, deltas, and direction.
+- PSI history and score distribution: psi_history and score_buckets exactly.
+- Feature stability: features exactly, and the supplied ranking top_3_unstable exactly. Do not recompute Top 3 or instability streaks.
+- Disbursal trend: disbursal_trend exactly, including null deltas as — and double_risk_event.
+- Risk/approval/bureau analysis: risk_segments, approval_methods, and bureau_depth_segments exactly.
+- Alerts: alerts exactly; render metric, current_value, threshold, status, persistent, and recommended_action as supplied.
 
-RULE 6 — EXACT LABELS ONLY
-Use only verbatim JSON labels for all segment, feature, approval method,
-score bucket, and status names.
-✗ "Auto Approval" for "BUREAU_SURROGATE"
-✗ "High Risk" for "DeepMid_08"
-✗ "300–349" for "(0.0, 0.201]"
+CC PSI is informational only: never flag, badge, or change its severity. CC CSI values are reference only: no flag, badge, colour, or commentary about their level. Do not create extra alerts or change any supplied severity. Render alert statuses exactly as supplied. A 0% value does not prove absence unless that row explicitly has absent_in_disbursed=true. Do not infer, repair, or replace absent flags.
 
-RULE 7 — NO RECOMPUTATION
-Do not derive rates from counts. Do not reclassify CSI. Do not re-rank top 3.
-Do not rebuild the alerts list. Render what the JSON already contains.
+5. PRESENTATION AND INSIGHT LIMITS
+Preserve raw labels verbatim, including feature names, segment names, method names, score-bucket labels, RAG/status names, threshold text, and alert text. Do not rename labels or introduce synonyms. Keep top-of-report insights concise and grounded only in supplied JSON. Each insight must use this compact format:
+Evidence: [exact label] | Value: [exact display value] | Severity: [supplied RAG/status, or —]
+Do not turn a correlation or co-occurrence into a cause. Do not state why something happened, assign accountability, prescribe an owner, quantify financial impact, add a threshold, or assert a date unless that exact claim/value exists in JSON. Do not infer trend, risk, persistence, absence, conversion, or priority beyond explicit JSON fields. Use no value from another section to fill a gap.
 
-RULE 8 — NO CROSS-FIELD VALUE MIGRATION
-PSI → kpis / psi_history only. CSI → features / feature_csi_summary only.
-Funnel → pipeline_funnel. Amounts → disbursal_trend.
-
-RULE 9 — NO EXTERNAL DEPENDENCIES
-No external stylesheets, scripts, CDN links, or JavaScript of any kind.
-No Chart.js, Google Fonts, or external images.
-All CSS inline in <style> in <head>. Must render with no internet connection.
-
-RULE 10 — FULL-WIDTH LAYOUT
-Report fills full browser viewport. No max-width below 1400px. No narrow centered column.
-Use 32px side padding. All tables: width 100%.
-KPI cards: full-width CSS Grid. Multi-column sections: CSS Grid with fr units.
-
-RULE 11 — JSON VALUES ARE AUTHORITATIVE
-If any narrative would contradict a JSON field (kpis, overall_rag, alerts, top_3),
-the JSON wins. Correct before writing.
-
-RULE 12 — CSI STATUS FROM JSON
-Use features[].disbursed_status_latest and kpis.feature_csi_summary counts as-is.
-Self-check: count of Unstable rows in the CSI table must equal feature_csi_summary.unstable.
-
-RULE 13 — REJECTION / FUNNEL RAG FROM JSON
-Use kpis.rejection_rate.rag and related funnel RAGs exactly. Do not re-badge.
-
-RULE 14 — AVG TICKET FROM JSON
-Use kpis.avg_ticket_lakhs.value and disbursal_trend[].avg_ticket_lakhs. Do not recompute.
-
-RULE 15 — MoM DELTAS FROM JSON
-Use pre-computed delta_pp / mom_delta_pp fields. Do not subtract display percentages.
-
-RULE 16 — TOP 3 FROM JSON
-Render top_3_unstable exactly. Do not re-sort features.
-
-RULE 17 — RISK SEGMENT / ABSENT FROM JSON
-Use risk_segments[].absent_in_disbursed and score_buckets[].absent_in_disbursed exactly.
-
-RULE 18 — ALERT SEVERITY FROM JSON
-Render alerts[].status exactly (Critical / Warning / Critical (Persistent)).
-Do not downgrade or invent alerts.
-
-RULE 19 — CC PSI AND CC CSI ALWAYS EXCLUDED FROM FLAGS
-CC PSI: label "Informational". No RAG badge. No alert. Never flagged.
-CC CSI: shown as reference only. No badge. No colour. No alert. No comment on its level.
-This applies regardless of the CC PSI or CC CSI value.
-
-Core principle: Read JSON unchanged. Narrate and render. Never invent. Never recompute.
+6. FINAL SELF-CHECK
+Before emitting, verify: raw HTML starts/ends exactly as required; no markdown or JavaScript exists; all nine headings appear once and in order; all listed top-level keys are represented; null/missing values display as —; CC PSI/CSI exclusions hold; every alert status is unchanged; no extra alert, severity change, unsupported causal claim, recalculation, invented threshold, owner, financial impact, or date appears.

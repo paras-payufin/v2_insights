@@ -1,261 +1,45 @@
-You are a senior data scientist specialising in model monitoring and evaluation.
-Analyse the attached UpTop V3 pre-computed MMR JSON (mmr_calculated.json) and
-produce a single-file, self-contained HTML monitoring report — full-width,
-production-grade, immediately actionable by both technical and non-technical
-stakeholders.
+You are a senior model-monitoring analyst. Use the directly attached JSON file as the authoritative, already-calculated monitoring input and the only source of truth and produce one production-grade, self-contained HTML report for technical and business readers.
 
-═══════════════════════════════════════════════════════
-INPUT — PRE-COMPUTED MMR JSON (AUTHORITATIVE)
-═══════════════════════════════════════════════════════
+SOURCE CONTRACT
+- Use only values, labels, statuses, flags, dates, and narratives supported by the JSON. It is authoritative: do not perform arithmetic or other derivation, inference, ranking, classification, thresholding, or alteration of rates, PSI, CSI, rankings, RAG, gaps, streaks, alerts, or dates. In particular, never derive a value from raw counts or distributions when the corresponding precomputed field is present.
+- Preserve JSON precision where useful, but do not invent precision. Use the supplied display values and flags. Preserve labels verbatim (including feature, segment, method, bucket, and status names).
+- Null, missing, or empty values: display “—” or “Not available”; omit a dependent narrative, badge, row, or alert rather than guessing. Do not treat missing as zero, absent, stable, green, or clear. If alerts is empty, state “No active alerts — all metrics within acceptable range.” only when that is supported by the empty array.
+- Credit Check PSI and Credit Check CSI are reference/informational only; never flag, colour, or use them as a risk conclusion. Use only the supplied overall_rag and per-item rag/status/flag fields.
+- Write important, concise, evidence-based insights at the top: in Section 1 include a short “Key Takeaways” strip with 2–3 highest-priority findings selected from supplied alerts, RAGs, and flags. Repeat brief, specific insights at the start or end of relevant sections. Every insight must cite an available metric/value, period, status, or flag; distinguish observation from action; avoid causal claims, forecasts, estimates, and unsupported comparisons. Do not add thresholds or new business rules.
 
-All KPIs, RAG badges, rates, deltas, CSI classifications, rankings, absent flags,
-alerts, and next_review_date are ALREADY COMPUTED in the attached JSON.
-Do NOT recompute rates, CSI classifications, RAG badges, or alert thresholds.
-Use JSON values verbatim. Your job is narrative + HTML rendering only.
+REQUIRED HTML OUTPUT
+Output only HTML, with the first characters exactly <!DOCTYPE html> and the last characters exactly </html>. No markdown wrapper, commentary, or text outside the document. Use semantic HTML and CSS only for design: no JavaScript, external assets, external fonts, network calls, SVG/canvas, or embedded computation. Make it full-width, responsive, print-friendly, and self-contained. CSS may style supplied values and statuses but must not change content. Use accessible contrast, clear tables, whitespace, and CSS Grid/Flexbox; do not impose a narrow centered max-width.
 
-Top-level keys (use these):
-  metadata              model_name, purpose, reporting_month, report_date,
-                        next_review_date, months_available, total_cc_applications_latest,
-                        total_disbursals_latest
-  overall_rag           Green | Amber | Red
-  kpis                  psi_credit_check, psi_disbursed, disbursal_rate, rejection_rate,
-                        ca_lps_not_done_pct, avg_ticket_lakhs, feature_csi_summary
-                        (each has value(s) + rag)
-  pipeline_funnel       per-status months{count,pct}, mom_delta_pp, direction
-  psi_history           month, cc_psi, disbursed_psi, disbursed_rag
-  score_buckets         bucket, cc_pct, disbursed_pct, gap_pp, absent_in_disbursed
-  features              name, cc_csi, disbursed_csi, disbursed_status_*, mom_delta,
-                        consecutive_instability_streak, unstable_months,
-                        adverse_selection
-  top_3_unstable        rank, name, disbursed_csi, status, adverse_selection
-  disbursal_trend       month, disbursed_count, amount_cr, avg_ticket_lakhs,
-                        disbursal_rate_pct, vol/amt mom deltas, double_risk_event
-  risk_segments         segment, cc_pct, disbursed_pct, gap_pp, absent_in_disbursed
-  approval_methods      method, cc_pct, disbursed_pct, gap_pp, critical_conversion_flag
-  bureau_depth_segments segment, cc/disbursed pct, gap_pp, disbursed_mom_delta_pp, alert
-  alerts                metric, current_value, threshold, status, recommended_action
-
-CC PSI and CC CSI are Informational / Reference only — never flag them.
-Use alerts[] as the complete early-warning list. Do not invent extra alerts.
-
-═══════════════════════════════════════════════════════
-ANTI-FABRICATION RULES
-═══════════════════════════════════════════════════════
-
-A-1  Every numeric value must come from the attached JSON. Never invent or recompute.
-A-2  Use kpis.*, features, top_3_unstable, alerts exactly as provided.
-A-3  No estimated revenue, loss, or market size unless present in JSON.
-A-4  Do not invent thresholds beyond what the JSON / this prompt already encode.
-A-5  Owner mapping:
-     PSI/CSI → "Data Science" | funnel/pipeline → "Operations + Product"
-     disbursal/conversion → "Business + Analytics" | segment/method → "Risk + Product"
-     Priority: Critical → P0 (Week 1) | Warning → P1 (Week 2–3) | Observational → P2 (Week 3–4)
-A-6  next_review_date = metadata.next_review_date (already computed).
-A-7  Absent / null value → "—". Never skip a section.
-A-8  CSI counts U/M/S must match kpis.feature_csi_summary in every section.
-A-9  Consecutive instability: use features[].consecutive_instability_streak and
-     features[].unstable_months — do not re-derive.
-A-10 Disbursal / rejection / CA-LPS RAG: use kpis.*.rag exactly.
-A-11 Risk segment ABSENT: use risk_segments[].absent_in_disbursed exactly.
-A-12 Approval critical flags: use approval_methods[].critical_conversion_flag.
-A-13 CC PSI: "Informational" — no RAG badge, no alert.
-     CC CSI: reference only — no badge, no flag, no comment on magnitude.
-
-═══════════════════════════════════════════════════════
-CONTEXT
-═══════════════════════════════════════════════════════
-
-Model: Uptop V3 — risk scoring model, Bajaj credit check stage.
-Risk Segment = combination of Uptop V3 score + Bureau Depth heuristic model.
-Bureau Depth = heuristic measuring data richness in a consumer's bureau profile
-  (1_DEEP = rich profile | 2_MID = moderate | 3_SHALLOW = thin/limited data).
-CC PSI/CSI are naturally elevated post-whitelisting — never flag or comment on them.
-Cadence: monthly snapshots. Source: file only. Absent values → "—".
-No Chart.js or external libraries. All trend visualisation uses CSS-only elements
-(inline bar widths, coloured cells, trend arrows ↑ ↓ →).
-
-═══════════════════════════════════════════════════════
-OUTPUT — 9 SECTIONS IN ORDER
-First output characters: <!DOCTYPE html>   Last output characters: </html>
-═══════════════════════════════════════════════════════
+Use these nine sections, in this exact order, with these exact headings and content expectations:
 
 SECTION 1 — REPORT HEADER
-Full-width dark navy banner.
-Title: "UpTop V3 — Model Monitoring Report"
-Sub-line: "Bajaj Credit Check | Live Pipeline Data"
-Right-aligned metadata: Reporting Month | Report Date | Overall RAG pill
-Overall RAG = metadata/overall_rag from JSON (already computed; CC excluded).
+Full-width banner titled “UpTop V3 — Model Monitoring Report” with sub-line “Bajaj Credit Check | Live Pipeline Data”. Show reporting month, report date, and the supplied overall_rag as a RAG pill. Add the concise “Key Takeaways” strip first within the report, using 2–3 highest-priority supplied findings and recommended actions; do not name or invent a metric not in the JSON.
 
-SECTION 2 — MODEL OVERVIEW (two-column cards)
-Left card:
-  Model Name: Uptop V3
-  Purpose: Risk Model — Bajaj Credit Check Stage
-  Risk Segment Logic: Uptop V3 score combined with Bureau Depth heuristic model
-  Monitoring Cadence: Monthly
-  Data Source: Credit Check pipeline + Disbursed cohort
-Right card:
-  Months available | Latest reporting month | Total CC applications | Total disbursals
-  Brief note on what Bureau Depth measures (1_DEEP / 2_MID / 3_SHALLOW).
+SECTION 2 — MODEL OVERVIEW
+Show model name, purpose, monitoring cadence, source file, months available, latest/reporting month, total CC applications, and total disbursals from metadata. Keep the context compact and add one evidence-based sentence only if supported.
 
-SECTION 3 — KPI DASHBOARD (7 cards, full-width single row)
-Each card: label | value | RAG badge. Order (from kpis.*):
-  1. PSI (Credit Check)      — kpis.psi_credit_check (Informational)
-  2. PSI (Disbursed)         — kpis.psi_disbursed
-  3. Disbursal Rate          — kpis.disbursal_rate
-  4. Rejection Rate          — kpis.rejection_rate
-  5. CA But LPS Not Done %   — kpis.ca_lps_not_done_pct
-  6. Avg Ticket Size (₹ L)   — kpis.avg_ticket_lakhs
-  7. Feature CSI (Disbursed) — feature_csi_summary "U / M / S" + rag
-Below cards: 2–3 sentence model health narrative — overall_rag, primary driver,
-Unstable feature count. Do NOT name individual features here.
+SECTION 3 — KPI DASHBOARD
+Use seven cards in this exact label order: “PSI (Credit Check)”, “PSI (Disbursed)”, “Disbursal Rate”, “Rejection Rate”, “CA But LPS Not Done %”, “Avg Ticket Size (₹ L)”, and “Feature CSI (Disb)”. Read values and rag fields from kpis; the Credit Check card says “Informational”. Include supplied current/prior/delta fields where present. Below the cards, add “Overall Model Health”: 2–3 concise sentences naming the supplied overall_rag, the strongest supplied driver(s), and the supplied unstable/marginal/stable counts; do not create a ranking.
 
-SECTION 4 — APPLICATION PIPELINE FUNNEL (full-width table)
-Columns: Status | Count (prior) | % (prior) | Count (latest) | % (latest) | MoM Δ (pp)
-Rows: Disbursed | Rejected | CA But LPS Not Done | Pre-approved | Expired | Open | Cancelled | Closed
-MoM Δ from unrounded rates; round delta only.
-Red text = undesirable direction. Green = desirable.
-Callouts: CA-LPS > 30% → red alert banner above table. Note rejection trend,
-expired/0% data maturity effect, pre-approved trend.
-Trend narrative (2–3 sentences): summarise direction and magnitude of key MoM shifts.
-Flag any status that changed by more than 5pp MoM as a notable shift.
+SECTION 4 — APPLICATION PIPELINE FUNNEL
+Render pipeline_funnel as a full-width table with status and all supplied month values, counts, percentages, mom_delta_pp, direction, and any other present fields. Preserve the eight status labels and supplied ordering. Add a 2–3 sentence pipeline narrative based only on supplied values/flags; call out only supplied notable directions or flags.
 
-SECTION 5 — PSI & SCORE DISTRIBUTION (two-column)
-Left: PSI history table (all months):
-  Columns: Month | CC PSI (Informational, no badge) | Disbursed PSI (RAG badge) | Trend
-  Below table: CSS inline bar chart — one bar per month, width proportional to
-  Disbursed PSI value, coloured by RAG. Label each bar with the PSI value.
-  Flag Disbursed PSI only if > 0.20.
-  Trend narrative: direction of PSI over all available months; note any reversal.
+SECTION 5 — PSI & SCORE DISTRIBUTION
+Use two panels. Left: psi_history for every supplied month with month, CC PSI labelled “Informational”, disbursed PSI, and supplied disbursed_rag. Right: score_buckets with bucket, CC%, Disbursed%, gap (pp), and absent_in_disbursed flag. Add 1–2 concise stability insights using these fields only. Never infer a missing bucket or assign a flag.
 
-Right: Score bucket table (latest month):
-  Columns: V3 Bucket | CC % | Disbursed % | Gap (pp)
-  Verbatim bucket labels. Flag any bucket present in CC but 0.00% in Disbursed.
-  Below table: 2–3 sentence narrative on overrepresented and underrepresented
-  score bands in the disbursed population vs credit check.
+SECTION 6 — CSI & FEATURE STABILITY
+Render features with name, latest and/or supplied monthly CC CSI and disbursed CSI, disbursed_status_latest, supplied monthly statuses, mom_delta, consecutive_instability_streak, unstable_months, adverse_selection, and csi_delta_cc_vs_disb. Show CC as “Reference” only. Use supplied statuses and flags exactly; do not classify CSI values. Include a panel titled “Top 3 Most Unstable (by Disbursed CSI)” using top_3_unstable rank, name, disbursed_csi, status, and adverse_selection. The panel is not a substitute for feature counts. Keep adverse-selection and persistence language factual and concise.
 
-SECTION 6 — CSI & FEATURE STABILITY (full-width)
-Table: Feature Name | CC CSI | CC Status | Disbursed CSI | Disbursed Status | MoM Trend
-CC Status: always "Reference" — no colour, no badge.
-Disbursed Status: features[].disbursed_status_latest exactly.
-Row backgrounds: Unstable #fef2f2 | Marginal #fffbeb | Stable white.
-If adverse_selection → add ⚠ adverse selection note in that row.
-MoM Trend column: from features[].mom_delta (↑ ↓ →).
+SECTION 7 — DISBURSAL & RISK SEGMENT ANALYSIS
+Use two or three readable panels. disbursal_trend: month, disbursed_count, amount_cr, avg_ticket_lakhs, disbursal_rate_pct, vol_mom_delta, amt_mom_delta, and double_risk_event. Risk segments: every risk_segments row with segment, CC%, Disbursed%, gap (pp), and absent_in_disbursed. Approval methods: every approval_methods row with method, CC%, Disbursed%, gap (pp), and critical_conversion_flag. If present, also show bureau_depth_segments with segment, CC%, Disbursed%, gap, disbursed_mom_delta_pp, and alert. Add 2–3 concise, evidence-based operational insights; do not estimate money or infer causes.
 
-Top 3 Most Unstable panel (top_3_unstable):
-  Label: "Top 3 Most Unstable (by Disbursed CSI)"
-  Show: rank | name | Disbursed CSI | status | adverse selection flag if applicable.
-  Note: highlight panel only, not the full Unstable list.
-
-Multi-month instability callout: use features[].unstable_months and
-consecutive_instability_streak. Flag High Priority if streak ≥ 2.
-
-2–3 sentence feature stability narrative: summarise overall drift direction,
-count of features worsening MoM, and any feature showing improvement.
-
-SECTION 7 — DISBURSAL, RISK SEGMENT & BUREAU DEPTH ANALYSIS
-
-Sub-section A — Disbursal Trend
-Table: Month | Applications | Amount (₹ Cr) | Avg Ticket (₹ L) | Disbursal Rate % | MoM Vol Δ | MoM Amt Δ
-Flag months where both volume AND amount declined MoM: "⚠ Double-Risk Event".
-Trend narrative: direction of volume, amount, and ticket size across all months.
-
-Sub-section B — Risk Segment Distribution
-Table: Segment | CC % | Disbursed % | Gap (pp) | MoM Δ (Disbursed %) | Flag
-All CC segments shown. ABSENT only for confirmed-absent names.
-MoM Δ column: change in Disbursed % vs prior month for each segment.
-Narrative: name only confirmed-ABSENT segments; call out segments with the
-largest conversion gap (CC % vs Disbursed %); note if DeepMid vs Shallow mix
-is shifting MoM.
-
-Sub-section C — Approval Method Distribution
-Table: Method | CC % | Disbursed % | Gap (pp) | MoM Δ (Disbursed %)
-Verbatim method names. CC > 20% + Disbursed < 5% → Critical flag.
-Narrative: summarise conversion pattern per method MoM; note any method with
-zero Disbursed conversion.
-
-Sub-section D — Bureau Depth Segment Distribution
-Table: Segment | CC % | Disbursed % | Gap (pp) | MoM Δ (Disbursed %)
-Segments verbatim from JSON (1_DEEP, 2_MID, 3_SHALLOW).
-Note whether richer bureau profiles (1_DEEP) are over- or underrepresented
-in disbursals vs credit check. Flag any MoM shift > 3pp in any segment.
-Narrative: 2 sentences on bureau depth composition trend and what it implies
-about the applicant mix reaching disbursal.
-
-3–4 sentence overall adverse selection narrative covering all four sub-sections.
-No monetary estimates unless present in file.
-
-SECTION 8 — EARLY WARNING ALERTS (full-width)
-Header: "Active Alerts"  |  Sub-line: "Evaluated: [metadata.report_date]"
-Table: # | Metric | Current Value | Threshold | Status | Recommended Action
-Status pills: Critical #ef4444 | Warning #f59e0b | OK #22c55e
-
-Render alerts[] from the JSON as the Active Alerts table. Do not invent extra rows.
-If alerts is empty: "No active alerts — all metrics within acceptable range."
+SECTION 8 — EARLY WARNING ALERTS
+Create a full-width “Active Alerts” panel, evaluated using metadata.report_date. Render one row per item in alerts with metric, current_value, threshold, status, persistent, recommended_action, and any other supplied alert fields. Use supplied status and recommended_action verbatim; style severity without inventing severity rules. Do not generate an alert from a non-alert row in another table, and do not repeat an alert unless the JSON contains it. Explain that Credit Check reference values are not alerts only if useful and supported by this contract.
 
 SECTION 9 — SUMMARY & ACTIONABLE INSIGHTS
-4–6 bullet findings — JSON values only, no estimates.
-Format: "[Metric] at [value] — [context + MoM delta if applicable] — [severity]"
-Use kpis.feature_csi_summary.unstable throughout.
+Give 4–6 concise bullets drawn only from supplied values, RAGs, statuses, and flags, prioritising alerts and material operational implications. Then provide an action table with Finding, Recommended Action, Owner, Priority, and Timeline; populate fields only when supplied or safely label them “Not available”. Do not invent owners, deadlines, causes, thresholds, or recommendations. Close with “Next Review Date:” followed by metadata.next_review_date (or “—” if null).
 
-Action table: Finding | Recommended Action | Owner | Priority | Timeline
-Use A-5 mappings exactly.
-
-Close with: "Next Review Date: [metadata.next_review_date]"
-
-═══════════════════════════════════════════════════════
-VISUAL DESIGN — INLINE CSS ONLY, NO EXTERNAL DEPENDENCIES
-═══════════════════════════════════════════════════════
-
-body: margin 0; padding 0; background #f0f2f5;
-  font-family -apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-  font-size 14px; line-height 1.6; color #1a202c
-.page-wrapper: width 100%; padding 0 32px; box-sizing border-box.
-  No max-width on main container.
-Multi-column layouts: CSS Grid with fr units. All tables: width 100%.
-
-Header: background linear-gradient(135deg,#0f2057 0%,#1e3a8a 60%,#1e40af 100%);
-  padding 36px 40px; color white.
-  Title: font-size 26px; font-weight 700.
-  Sub-line: font-size 15px; opacity 0.80.
-  Metadata strip: flex right; font-size 13px; opacity 0.85.
-
-KPI cards: grid-template-columns repeat(7,1fr); gap 16px; padding 24px 0.
-  Card: background white; border-radius 10px; padding 20px 16px; text-align center;
-    box-shadow 0 2px 8px rgba(0,0,0,0.08); border-top 4px solid [RAG colour].
-  Label: font-size 11px; text-transform uppercase; letter-spacing 0.6px; color #64748b.
-  Value: font-size 26px; font-weight 700; color #1e293b.
-  Badge: inline-block; padding 3px 10px; border-radius 12px; font-size 11px;
-    font-weight 600; color white.
-
-Section cards: background white; border-radius 12px; margin 20px 0;
-  padding 28px 32px; box-shadow 0 1px 4px rgba(0,0,0,0.07).
-Section heading: font-size 16px; font-weight 700; color #1e3a8a; margin-bottom 20px;
-  padding-bottom 10px; border-bottom 2px solid #e2e8f0.
-Sub-section heading: font-size 14px; font-weight 600; color #334155;
-  margin-top 24px; margin-bottom 12px.
-
-Tables: thead background #1e3a8a; color white; font-weight 600; font-size 12px;
-  text-transform uppercase; letter-spacing 0.4px.
-  th,td: padding 11px 14px; text-align left; border-bottom 1px solid #f1f5f9; font-size 13px.
-  tbody tr:nth-child(even): background #f8fafc.
-  tbody tr:hover: background #eff6ff.
-
-CSS inline bar chart (Section 5 PSI trend):
-  Container div: width 100%; margin-top 16px.
-  Each bar row: display flex; align-items center; margin-bottom 6px; gap 8px.
-  Label: width 60px; font-size 12px; color #64748b.
-  Bar: height 18px; border-radius 4px; background [RAG colour]; min-width 4px.
-  Value label: font-size 12px; font-weight 600; margin-left 6px.
-
-RAG badges: Green #22c55e | Amber #f59e0b | Red #ef4444 | Informational #64748b.
-  All: color white; padding 3px 10px; border-radius 12px; font-size 11px;
-  font-weight 600; white-space nowrap.
-
-Alert rows: Critical — border-left 4px solid #ef4444; background #fff5f5.
-  Warning — border-left 4px solid #f59e0b; background #fffdf0.
-  OK — border-left 4px solid #22c55e; background #f0fdf4.
-
-MoM delta: undesirable increase → color #ef4444; font-weight 600.
-  Desirable decrease → color #22c55e; font-weight 600. Neutral → color #64748b.
-
-Trend arrows: ↑ color #ef4444 (worsening) | ↓ colour #22c55e (improving) | → color #64748b (stable).
+INSIGHT AND PRESENTATION RULES
+- Put the most important insight at the top, not buried in tables. Throughout the report, prefer short sentences and scannable callouts: finding → evidence → bounded action.
+- Mention a metric only with its available value/period and supplied status/flag. “May be associated with” is acceptable; “caused”, “will”, “should improve by”, or any extrapolation is not.
+- Never add thresholds, formulas, arithmetic, derived rankings, synthetic trends, or sample values. Never hardcode values from this dataset into the prompt or report. Keep all 9 sections present even when a subsection has no data; show “Not available” and explain nothing beyond the JSON.
