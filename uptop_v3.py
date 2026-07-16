@@ -268,8 +268,8 @@ def main():
         file_id = upload_to_toqan(
             json_file_name, json_buffer, content_type="application/json"
         )
-        conversation_id, request_id = create_analysis_conversation(file_id) # inpout 
-        analysis = wait_for_analysis(conversation_id, request_id) # wait 
+        conversation_id, request_id = create_analysis_conversation(file_id)
+        analysis = wait_for_analysis(conversation_id, request_id)
         send_report_email(file_name, analysis, MODEL_NAME)
 
         print("\n" + "=" * 80)
@@ -287,12 +287,11 @@ def main():
 
 
 # ============================================================================
-# AIRFLOW DAG DEFINITION (classic PythonOperator style)
+# AIRFLOW DAG DEFINITION (TaskFlow API)
 # ============================================================================
 
 try:
-    from airflow import DAG  # type: ignore[import-untyped]
-    from airflow.operators.python import PythonOperator  # type: ignore[import-untyped]
+    from airflow.decorators import dag, task  # type: ignore[import-untyped]
     from airflow.utils.dates import days_ago  # type: ignore[import-untyped]
     _AIRFLOW_AVAILABLE = True
 except ImportError:  # local run without Airflow installed
@@ -301,93 +300,81 @@ except ImportError:  # local run without Airflow installed
 
 if _AIRFLOW_AVAILABLE:
 
-    # ── Task callables ────────────────────────────────────────────────────
-    # Each callable pulls/pushes via XCom so tasks stay decoupled.
-
-    def _task_find_latest(**context):
-        s3_key, file_name, file_size = find_latest_file()
-        context["ti"].xcom_push(key="s3_key",       value=s3_key)
-        context["ti"].xcom_push(key="file_name",    value=file_name)
-        context["ti"].xcom_push(key="file_size_mb", value=round(file_size, 4))
-
-    def _task_extract_and_upload(**context):
-        """Download HTML from S3, build MMR JSON, upload JSON to Toqan."""
-        ti        = context["ti"]
-        s3_key    = ti.xcom_pull(task_ids="find_latest", key="s3_key")
-        file_name = ti.xcom_pull(task_ids="find_latest", key="file_name")
-        html_buffer = None
-        json_buffer = None
-        try:
-            html_buffer = download_file(s3_key)
-            json_buffer, json_file_name, mmr = build_mmr_json(html_buffer, file_name)
-            file_id = upload_to_toqan(
-                json_file_name, json_buffer, content_type="application/json"
-            )
-        finally:
-            if html_buffer:
-                html_buffer.close()
-            if json_buffer:
-                json_buffer.close()
-        ti.xcom_push(key="file_id", value=file_id)
-        ti.xcom_push(key="json_file_name", value=json_file_name)
-        ti.xcom_push(key="overall_rag", value=mmr.get("overall_rag"))
-
-    def _task_start_analysis(**context):
-        ti      = context["ti"]
-        file_id = ti.xcom_pull(task_ids="extract_calculate_upload", key="file_id")
-        conv_id, request_id = create_analysis_conversation(file_id)
-        ti.xcom_push(key="conversation_id", value=conv_id)
-        ti.xcom_push(key="request_id", value=request_id)
-
-    def _task_fetch_and_email(**context):
-        ti          = context["ti"]
-        conv_id     = ti.xcom_pull(task_ids="start_analysis", key="conversation_id")
-        request_id  = ti.xcom_pull(task_ids="start_analysis", key="request_id")
-        file_name   = ti.xcom_pull(task_ids="find_latest",    key="file_name")
-        analysis    = wait_for_analysis(conv_id, request_id)
-        send_report_email(file_name, analysis, MODEL_NAME)
-
-    # ── DAG ───────────────────────────────────────────────────────────────
-
-    DAG_DEFAULT_ARGS = {
-        "owner": "data",
-        "retries": 2,
-        "retry_delay": timedelta(minutes=5),
-        "on_failure_callback": dag_failure_callback,
-    }
-
-    with DAG(
+    @dag(
         dag_id="uptop_v3_insights",
-        default_args=DAG_DEFAULT_ARGS,
+        default_args={
+            "owner": "data",
+            "retries": 2,
+            "retry_delay": timedelta(minutes=5),
+            "on_failure_callback": dag_failure_callback,
+        },
         description="S3 HTML → MMR JSON → Toqan HTML report → email (UpTop V3)",
         schedule_interval="0 9 * * 0",  # Every Sunday at 09:00 AM
         start_date=days_ago(1),
         catchup=False,
         max_active_runs=1,
         tags=["toqan", "uptop-v3", "insights", "bajaj"],
-    ) as dag:
+    )
+    def uptop_v3_insights():
+        """S3 HTML → extract/calculate MMR JSON → Toqan → email."""
 
-        t1_find_latest = PythonOperator(
-            task_id="find_latest",
-            python_callable=_task_find_latest,
-        )
+        @task(task_id="find_latest")
+        def find_latest():
+            s3_key, file_name, file_size = find_latest_file()
+            return {
+                "s3_key": s3_key,
+                "file_name": file_name,
+                "file_size_mb": round(file_size, 4),
+            }
 
-        t2_extract_upload = PythonOperator(
-            task_id="extract_calculate_upload",
-            python_callable=_task_extract_and_upload,
-        )
+        @task(task_id="extract_calculate_upload")
+        def extract_calculate_upload(file_info: dict):
+            html_buffer = None
+            json_buffer = None
+            try:
+                html_buffer = download_file(file_info["s3_key"])
+                json_buffer, json_file_name, mmr = build_mmr_json(
+                    html_buffer, file_info["file_name"]
+                )
+                file_id = upload_to_toqan(
+                    json_file_name, json_buffer, content_type="application/json"
+                )
+            finally:
+                if html_buffer:
+                    html_buffer.close()
+                if json_buffer:
+                    json_buffer.close()
+            return {
+                "file_id": file_id,
+                "json_file_name": json_file_name,
+                "overall_rag": mmr.get("overall_rag"),
+            }
 
-        t3_start_analysis = PythonOperator(
-            task_id="start_analysis",
-            python_callable=_task_start_analysis,
-        )
+        @task(task_id="start_analysis")
+        def start_analysis(upload_info: dict):
+            conversation_id, request_id = create_analysis_conversation(
+                upload_info["file_id"]
+            )
+            return {
+                "conversation_id": conversation_id,
+                "request_id": request_id,
+            }
 
-        t4_fetch_and_email = PythonOperator(
-            task_id="fetch_analysis_and_send_email",
-            python_callable=_task_fetch_and_email,
-        )
+        @task(task_id="fetch_analysis_and_send_email")
+        def fetch_analysis_and_send_email(file_info: dict, analysis_info: dict):
+            analysis = wait_for_analysis(
+                analysis_info["conversation_id"],
+                analysis_info["request_id"],
+            )
+            send_report_email(file_info["file_name"], analysis, MODEL_NAME)
 
-        t1_find_latest >> t2_extract_upload >> t3_start_analysis >> t4_fetch_and_email
+        file_info = find_latest()
+        upload_info = extract_calculate_upload(file_info)
+        analysis_info = start_analysis(upload_info)
+        fetch_analysis_and_send_email(file_info, analysis_info)
+
+    # Register DAG with Airflow
+    dag = uptop_v3_insights()
 
 
 # ============================================================================
