@@ -8,7 +8,15 @@ SOURCE CONTRACT
 - Write important, concise, evidence-based insights at the top: in Section 1 include a short “Key Takeaways” strip with 2–3 highest-priority findings selected from supplied alerts, RAGs, and flags. Repeat brief, specific insights at the start or end of relevant sections. Every insight must cite an available metric/value, period, status, or flag; distinguish observation from action; avoid causal claims, forecasts, estimates, and unsupported comparisons. Do not add thresholds or new business rules.
 
 REQUIRED HTML OUTPUT
-Output only HTML, with the first characters exactly <!DOCTYPE html> and the last characters exactly </html>. No markdown wrapper, commentary, or text outside the document. Use semantic HTML and CSS only for design: no JavaScript, external assets, external fonts, network calls, SVG/canvas, or embedded computation. Make it full-width, responsive, print-friendly, and self-contained. CSS may style supplied values and statuses but must not change content. Use accessible contrast, clear tables, whitespace, and CSS Grid/Flexbox; do not impose a narrow centered max-width.
+Write the complete HTML source code directly in your response body (inline).
+Do NOT generate a downloadable file, do NOT save an attachment, do NOT return a filename,
+and do NOT reply with a success summary like "report generated successfully".
+Output only HTML: first characters exactly <!DOCTYPE html>, last characters exactly </html>.
+No markdown wrapper, commentary, or text outside the document.
+Use semantic HTML and CSS only for design: no JavaScript, external assets, external fonts, network calls, SVG/canvas, or embedded computation.
+Make it full-width, responsive, print-friendly, and self-contained.
+CSS may style supplied values and statuses but must not change content.
+Use accessible contrast, clear tables, whitespace, and CSS Grid/Flexbox; do not impose a narrow centered max-width.
 
 Use these nine sections, in this exact order, with these exact headings and content expectations:
 

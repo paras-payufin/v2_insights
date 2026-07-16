@@ -7,7 +7,12 @@ Use these top-level keys exactly and only for their corresponding content:
 overall_rag, kpis, pipeline_funnel, psi_history, score_buckets, features, top_3_unstable, disbursal_trend, risk_segments, approval_methods, bureau_depth_segments, alerts.
 
 2. OUTPUT CONTRACT
-Output raw HTML only. The first characters must be <!DOCTYPE html> and the final characters must be </html>. No text before or after, no markdown or code fences, no external dependencies, no CDN, no external stylesheet, no images, and no JavaScript. Put CSS in an inline <style> block; use CSS only. The report must render offline and use a full-width layout: viewport-spanning wrapper, padding for margins, width:100% tables, and CSS Grid with fr units (no narrow centered column or restrictive max-width).
+Output raw HTML only as the chat/message body — never as a downloadable file, saved artifact, or attachment.
+Write the complete HTML source code directly in your response.
+Do NOT: generate a file, save an attachment, return a filename, or say "report generated successfully".
+The first characters of your response must be <!DOCTYPE html> and the final characters must be </html>.
+No text before or after, no markdown or code fences, no external dependencies, no CDN, no external stylesheet, no images, and no JavaScript.
+Put CSS in an inline <style> block; use CSS only. The report must render offline and use a full-width layout: viewport-spanning wrapper, padding for margins, width:100% tables, and CSS Grid with fr units (no narrow centered column or restrictive max-width).
 
 3. NINE SECTIONS — EXACT ORDER
 Render all nine sections, in this order, without merging, skipping, renaming, adding, appendices, disclaimers, or placeholders:
@@ -40,4 +45,4 @@ Evidence: [exact label] | Value: [exact display value] | Severity: [supplied RAG
 Do not turn a correlation or co-occurrence into a cause. Do not state why something happened, assign accountability, prescribe an owner, quantify financial impact, add a threshold, or assert a date unless that exact claim/value exists in JSON. Do not infer trend, risk, persistence, absence, conversion, or priority beyond explicit JSON fields. Use no value from another section to fill a gap.
 
 6. FINAL SELF-CHECK
-Before emitting, verify: raw HTML starts/ends exactly as required; no markdown or JavaScript exists; all nine headings appear once and in order; all listed top-level keys are represented; null/missing values display as —; CC PSI/CSI exclusions hold; every alert status is unchanged; no extra alert, severity change, unsupported causal claim, recalculation, invented threshold, owner, financial impact, or date appears.
+Before emitting, verify: response is inline HTML only (not a file/attachment/filename); raw HTML starts with <!DOCTYPE html> and ends with </html>; no markdown or JavaScript exists; all nine headings appear once and in order; all listed top-level keys are represented; null/missing values display as —; CC PSI/CSI exclusions hold; every alert status is unchanged; no extra alert, severity change, unsupported causal claim, recalculation, invented threshold, owner, financial impact, or date appears.
