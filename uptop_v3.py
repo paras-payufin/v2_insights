@@ -268,8 +268,8 @@ def main():
         file_id = upload_to_toqan(
             json_file_name, json_buffer, content_type="application/json"
         )
-        conversation_id, request_id = create_analysis_conversation(file_id)
-        analysis = wait_for_analysis(conversation_id, request_id)
+        conversation_id, request_id = create_analysis_conversation(file_id) # inpout 
+        analysis = wait_for_analysis(conversation_id, request_id) # wait 
         send_report_email(file_name, analysis, MODEL_NAME)
 
         print("\n" + "=" * 80)
