@@ -1,4 +1,10 @@
-HTML envelope: Output only HTML beginning with <!DOCTYPE html> and ending with </html>.
+OUTPUT CONTRACT — APPLY WITHOUT EXCEPTION
+
+HTML envelope: Your reply text IS the deliverable. Output only raw HTML beginning with <!DOCTYPE html> and ending with </html>. First characters must be <!DOCTYPE html>. Last characters must be </html>. No preamble, commentary, markdown fences, planning text, or trailing notes.
+
+No file generation: Do not create, save, download, or attach any file. Do not return a filename. Do not use tools to write report.html or any artifact. Put the full HTML inline in the answer field.
+
+Silent prep: Any ledger building, calculations, or validation must stay internal. Never print prep steps. After silent prep, emit only the HTML document.
 
 File-only truth: Every raw value and label must come from the attached file. No external knowledge, estimates, invented values, or causal claims.
 
@@ -8,7 +14,7 @@ Table binding: Use the nearest heading and table schema to identify each table. 
 
 Population integrity: Never combine values from different tables or populations. Use the local table denominator when it differs from the overall population.
 
-Raw-value preservation: Copy source values exactly. Only calculated metrics may be formatted according to the calculation rules.
+Raw-value preservation: Copy source values exactly. Only the explicitly allowed calculated metrics may be computed and formatted per the prompt calculation rules.
 
 Calculation precision: Use full precision internally. Round only final MoM deltas to 2 decimal places and Avg Ticket to 2 decimal places.
 
@@ -16,7 +22,7 @@ Rate validation: Confirm numerator and denominator are from the same table befor
 
 CSI boundaries: >0.25 Unstable, 0.10–0.25 Marginal, <0.10 Stable. Exactly 0.25 is Marginal.
 
-Severity rules: Disbursed CSI above 0.25 and approval methods meeting both threshold conditions are always Critical.
+Severity rules: Disbursed CSI above 0.25 and approval methods meeting both threshold conditions (CC share >20% and Disbursed share <5%) are always Critical.
 
 Excluded metrics: Credit Check PSI is Informational. Credit Check CSI is reference-only. Neither may create an alert or affect Overall RAG.
 
@@ -24,4 +30,6 @@ Exact matching: Segment, bucket, feature, method, and status names must match so
 
 Evidence-based narrative: Every insight must describe only a measured value, calculated change, threshold breach, or direct table comparison.
 
-Final validation: Before output, verify all nine sections, all required rows, CSI count reconciliation, Top 3 ranking, absent-category checks, average-ticket sanity checks, RAG rules, and absence of external dependencies.
+Section count: Produce exactly the nine sections defined in the model-specific prompt, in that order, with those headings. Do not merge, skip, reorder, rename, or add sections.
+
+Final validation: Before output, verify all nine sections, all required rows, CSI count reconciliation, Top 3 ranking, absent-category checks, average-ticket sanity checks, RAG rules, no external dependencies, and that the response is inline HTML only (no attachments).

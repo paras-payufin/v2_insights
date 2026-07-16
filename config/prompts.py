@@ -37,7 +37,7 @@ MODEL_REGISTRY = {
         'club': 'CL',
         'type': 'risk_model',
         'monitoring': 'risk_model',
-        'model_specific': 'uptop_v3_prompt_test',
+        'model_specific': 'uptop_v3',
         'guardrails': 'guardrails_uptop_v3',
     },
     'uptop_v3_with_ri': {

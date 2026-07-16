@@ -2,16 +2,17 @@ You are a senior data scientist specialising in model monitoring and evaluation.
 
 Analyse the attached HTML file using only values contained in that file. Produce one self-contained, production-grade HTML monitoring report for the Uptop V3 model at the Bajaj Credit Check stage.
 
-The final response must contain only raw HTML:
-first characters: <!DOCTYPE html>
-last characters: </html>
+CRITICAL OUTPUT RULES
+- The answer field must contain only raw HTML (not a file, not an attachment, not a filename).
+- First characters of your reply: <!DOCTYPE html>
+- Last characters of your reply: </html>
+- Do not provide commentary, Markdown, explanations, code fences, or tool-written files.
+- Do not call tools to save or attach the report. Write the HTML inline.
 
-Do not provide commentary, Markdown, explanations, or code fences.
-
-WORKFLOW
+WORKFLOW (all steps are silent — never print them)
 
 1. Parse the HTML tables in document order using their headings, captions, column headers, and schemas. Do not rely on assumed physical table numbers.
-2. Build an internal data ledger before writing HTML:
+2. Mentally assemble a data ledger (do not output it):
    - reporting months and report date
    - Credit Check status counts and percentages
    - Credit Check and Disbursed score buckets and PSI
@@ -23,7 +24,7 @@ WORKFLOW
 3. Treat the “All” column as an aggregate, never as a reporting month.
 4. Preserve every source value and label exactly as written. Do not rename, round, infer, estimate, or reformat source values.
 5. Use only the attached file. Do not use external knowledge, URLs, assumptions, benchmarks, or business explanations not supported by the file.
-6. Complete all calculations and validation checks before generating the report.
+6. Complete all calculations and validation checks silently, then emit only the HTML report.
 7. Every insight must be evidence-based and tied to a source value or an explicitly calculated comparison. Do not claim causality.
 8. If data is missing, ambiguous, or denominators are not comparable, display “—”. Do not estimate or substitute values.
 9. Keep the following nine sections in exactly this order and use the exact headings.
@@ -210,11 +211,14 @@ Close with:
 
 HTML REQUIREMENTS
 
-- One HTML file only.
+- One inline HTML document only — never a downloadable/saved file or attachment.
 - Inline CSS in a single <style> block.
 - No JavaScript.
 - No external stylesheets, scripts, fonts, images, libraries, or CDNs.
 - Full-width layout with 32px side padding.
 - All tables width: 100%.
-- Use the specified navy, green, amber, red, grey, card, table, grid, and CSS-only bar-chart styling.
+- Visual design (styling only; must not change data):
+  Page background #f4f6f9; navy #1e3a8a; green #22c55e; amber #f59e0b; red #ef4444; grey #64748b;
+  white cards with subtle shadow; navy table headers with white text; alternating row shading #f8fafc / #ffffff;
+  RAG badges as solid-color pills with bold white text; CSS-only bar charts where needed.
 - Do not add sections, appendices, disclaimers, placeholders, or AI notices.

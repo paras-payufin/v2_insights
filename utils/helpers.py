@@ -97,9 +97,182 @@ def extract_html_document(text):
     return text[start_idx:end_idx].strip()
 
 
+def _looks_like_html(text):
+    if not text or not str(text).strip():
+        return False
+    return str(text).strip().lower().lstrip().startswith(("<!doctype html", "<html"))
+
+
+def _download_toqan_file(conversation_id, file_name, headers, base_url):
+    """
+    Download a Toqan conversation file via GET /download_file.
+    Returns decoded text, or None on failure.
+    """
+    try:
+        response = requests.get(
+            f"{base_url}/download_file",
+            headers=headers,
+            params={
+                "conversation_id": conversation_id,
+                "file_name": file_name,
+            },
+            timeout=120,
+        )
+        if not response.ok:
+            logging.warning(
+                f"download_file failed for {file_name!r}: "
+                f"HTTP {response.status_code} {response.text[:200]!r}"
+            )
+            return None
+        # Prefer UTF-8; fall back to response encoding / latin-1 for binary-ish payloads
+        try:
+            return response.content.decode("utf-8")
+        except UnicodeDecodeError:
+            return response.content.decode(response.encoding or "latin-1", errors="replace")
+    except requests.RequestException as exc:
+        logging.warning(f"download_file request error for {file_name!r}: {exc}")
+        return None
+
+
+def _recover_answer_from_attachments(conversation_id, attachments, headers, base_url):
+    """
+    If /get_answer returned empty text but listed attachments, try to pull
+    HTML content from those files via /download_file.
+    """
+    for attachment in attachments or []:
+        name = (attachment or {}).get("name") or ""
+        mime = ((attachment or {}).get("mime_type") or "").lower()
+        looks_html = name.lower().endswith((".html", ".htm")) or "html" in mime
+        if not name or not looks_html:
+            continue
+        logging.warning(
+            f"Recovering inline answer from attachment {name!r} "
+            f"(mime={mime!r}) via /download_file"
+        )
+        content = _download_toqan_file(conversation_id, name, headers, base_url)
+        if content and _looks_like_html(content):
+            return extract_html_document(content)
+        if content and len(content.strip()) >= 500:
+            return content
+    return None
+
+
+def _recover_answer_from_conversation(conversation_id, headers, base_url):
+    """
+    Fallback for empty /get_answer payloads: POST /find_conversation and
+    extract the latest assistant message that contains HTML (or substantial text).
+    """
+    try:
+        response = requests.post(
+            f"{base_url}/find_conversation",
+            headers=headers,
+            json={"conversation_id": conversation_id},
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        logging.warning(f"find_conversation request error: {exc}")
+        return None
+
+    if not response.ok:
+        logging.warning(
+            f"find_conversation failed: HTTP {response.status_code} "
+            f"{response.text[:200]!r}"
+        )
+        return None
+
+    try:
+        items = response.json()
+    except Exception:
+        logging.warning("find_conversation returned non-JSON body")
+        return None
+
+    if not isinstance(items, list):
+        logging.warning(f"find_conversation unexpected payload type: {type(items)}")
+        return None
+
+    # Walk newest → oldest; prefer HTML messages.
+    for item in reversed(items):
+        if not isinstance(item, dict):
+            continue
+        message = item.get("message") or ""
+        if _looks_like_html(message):
+            logging.warning(
+                "Recovered HTML answer from /find_conversation "
+                f"(item_id={item.get('id')!r}, len={len(message)})"
+            )
+            return extract_html_document(message)
+
+        # Attachment listed on a conversation item but missing from /get_answer
+        item_attachments = item.get("attachments") or []
+        recovered = _recover_answer_from_attachments(
+            conversation_id, item_attachments, headers, base_url
+        )
+        if recovered:
+            return recovered
+
+    # Last resort: longest non-user-looking message with substantial content
+    candidates = [
+        (item.get("message") or "")
+        for item in items
+        if isinstance(item, dict) and (item.get("message") or "").strip()
+    ]
+    # Skip the user prompt (usually the longest non-HTML instruction blob) by
+    # preferring messages that look like deliverables, not prompt text.
+    for message in reversed(candidates):
+        stripped = message.strip()
+        if len(stripped) < 500:
+            continue
+        if stripped.lower().startswith(("you are a senior", "html envelope", "analyze")):
+            continue
+        logging.warning(
+            f"Recovered non-HTML answer from /find_conversation (len={len(stripped)})"
+        )
+        return stripped
+
+    return None
+
+
+def _validate_finished_answer(answer, attachments, conversation_id):
+    """
+    Ensure a finished Toqan payload is a usable inline HTML report.
+    Returns the answer on success; raises RuntimeError otherwise.
+    """
+    if not answer or not str(answer).strip():
+        raise RuntimeError(
+            "Toqan returned status=finished but answer is empty. "
+            f"attachments={attachments!r}. "
+            f"conversation_id={conversation_id}"
+        )
+
+    looks_like_html = _looks_like_html(answer)
+    if attachments and not looks_like_html:
+        raise RuntimeError(
+            f"Toqan returned status=finished but did not return a valid "
+            f"inline HTML report ({len(answer.strip())} chars, "
+            f"attachments={attachments!r}). "
+            f"Answer: {answer.strip()[:300]!r}. "
+            f"The model may have generated a downloadable file artifact "
+            f"instead of returning the HTML inline. "
+            f"conversation_id={conversation_id}"
+        )
+    if len(answer.strip()) < 500 and not looks_like_html:
+        raise RuntimeError(
+            f"Toqan returned status=finished but did not return a valid "
+            f"inline HTML report ({len(answer.strip())} chars, "
+            f"attachments={attachments!r}). "
+            f"Answer: {answer.strip()!r}. "
+            f"conversation_id={conversation_id}"
+        )
+    return answer
+
+
 def get_analysis(conversation_id, request_id, headers, base_url):
     """
     Poll GET /get_answer until status == "finished", then return the answer.
+
+    If Toqan marks the request finished with an empty answer, fall back to:
+      1) HTML attachments via GET /download_file
+      2) conversation history via POST /find_conversation
 
     Args:
         conversation_id: Conversation ID returned by /create_conversation
@@ -111,7 +284,7 @@ def get_analysis(conversation_id, request_id, headers, base_url):
         str: Completed answer text
 
     Raises:
-        RuntimeError: On status==error, empty answer, or exhausted poll budget
+        RuntimeError: On status==error, empty/unrecoverable answer, or exhausted poll budget
     """
     url = f"{base_url}/get_answer"
     max_polls = MAX_POLL_ATTEMPTS
@@ -164,41 +337,51 @@ def get_analysis(conversation_id, request_id, headers, base_url):
         logging.info(f"[Poll {attempt}/{max_polls}] status={status}")
 
         if status == "finished":
-            answer = data.get("answer", "")
+            answer = data.get("answer") or ""
             attachments = data.get("attachments") or []
             if attachments:
                 names = [a.get("name") for a in attachments]
                 logging.warning(
                     f"[Poll {attempt}] Toqan response includes {len(attachments)} "
-                    f"file attachment(s): {names}. If the report was expected as "
-                    f"inline HTML, the model generated a downloadable artifact "
-                    f"instead — check the prompt's output-format instructions."
+                    f"file attachment(s): {names}. Prefer inline HTML; will try "
+                    f"attachment recovery if answer is empty/non-HTML."
                 )
-            if not answer or not answer.strip():
-                raise RuntimeError(
-                    "Toqan returned status=finished but answer is empty. "
-                    f"attachments={attachments!r}. "
-                    f"conversation_id={conversation_id}"
+
+            if not answer.strip():
+                recovered = _recover_answer_from_attachments(
+                    conversation_id, attachments, headers, base_url
                 )
+                if not recovered:
+                    recovered = _recover_answer_from_conversation(
+                        conversation_id, headers, base_url
+                    )
+                if recovered:
+                    answer = recovered
+                    logging.warning(
+                        f"[Poll {attempt}] Recovered answer after empty "
+                        f"/get_answer payload ({len(answer)} chars)."
+                    )
+                else:
+                    raise RuntimeError(
+                        "Toqan returned status=finished but answer is empty. "
+                        f"attachments={attachments!r}. "
+                        f"Tried /download_file and /find_conversation recovery. "
+                        f"conversation_id={conversation_id}"
+                    )
+
+            # Attachment present with non-HTML inline answer → try download first
+            if attachments and not _looks_like_html(answer):
+                recovered = _recover_answer_from_attachments(
+                    conversation_id, attachments, headers, base_url
+                )
+                if recovered:
+                    answer = recovered
+
             logging.info(
                 f"[Poll {attempt}] Completed. Answer length: {len(answer)} chars. "
                 f"Preview: {answer[:200]!r}"
             )
-            # Guard: fail loudly if Toqan produced a file artifact (per the
-            # documented `attachments` field) or the inline answer is too short/
-            # not HTML to be a valid report, rather than sending a broken email.
-            looks_like_html = answer.strip().lower().lstrip().startswith(("<!doctype html", "<html"))
-            if attachments or (len(answer.strip()) < 500 and not looks_like_html):
-                raise RuntimeError(
-                    f"Toqan returned status=finished but did not return a valid "
-                    f"inline HTML report ({len(answer.strip())} chars, "
-                    f"attachments={attachments!r}). "
-                    f"Answer: {answer.strip()!r}. "
-                    f"The model may have generated a downloadable file artifact "
-                    f"instead of returning the HTML inline. "
-                    f"conversation_id={conversation_id}"
-                )
-            return answer
+            return _validate_finished_answer(answer, attachments, conversation_id)
 
         elif status == "error":
             raise RuntimeError(
