@@ -12,12 +12,17 @@ MONITORING WINDOWS
 60in15: Backend monitoring only. Label charts "Backend monitoring — 60in15."
 Never mix 30in6 and 60in15 in the same chart.
 For all 60in15 charts include: "Unavailable values are not zero. 60in15 needs longer maturity."
-OUTPUT FILE
-Generate: uptop_v3_model_monitoring_report.html
+OUTPUT FORMAT (CRITICAL)
+Return the complete HTML report inline in your response — do NOT create, save, or return a downloadable file/attachment/filename.
+- First characters of your response must be: <!DOCTYPE html>
+- Last characters must be: </html>
+- Do not wrap the HTML in markdown code fences
+- Do not write a short header-only shell — every section below must be fully populated with embedded data and working Chart.js canvases
+- A header-only or stub page is an invalid response
 
 Requirements:
 
-Self-contained. Renders offline and online. Suitable for email attachment distribution (downloadable .html file).
+Self-contained. Renders offline and online. Downstream systems will attach this HTML to email — you must still return the full source inline.
 Dark header (#0f0c29 → #302b63 → #24243e gradient), KPI cards, responsive layout, clear section hierarchy.
 All charts use Chart.js (CDN: https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js). Every chart must have: visible legend, named x-axis, named y-axis, tooltips or visible value labels.
 Loan counts must never be plotted on a percentage axis.
@@ -67,14 +72,15 @@ Credit-check PSI as a standalone chart. Calibration section. Data-limitations se
 
 PRE-FLIGHT CHECK
 Before finalising, verify:
-(a) One <html> with one <head> and one <body>.
+(a) One <html> with one <head> and one <body>; response starts with <!DOCTYPE html> and ends with </html>.
 (b) All data embedded — no runtime retrieval.
-(c) Every chart has legend + labelled axes.
+(c) Every chart has legend + labelled axes and a matching <canvas> element.
 (d) 30in6 and 60in15 never merged.
 (e) "Unavailable values are not zero" and "60in15 needs longer maturity" are present.
 (f) No Credit-check PSI chart and no calibration section.
 (g) DSA 2024-12 warning present if applicable.
-(h) File renders standalone offline.
-(i) All 9 sections present and complete.
+(h) Document renders standalone offline (Chart.js CDN is the only external dependency).
+(i) All 9 sections present and complete with visible content (not empty placeholders).
 (j) 60in15 charts actually render — canvas elements exist and JS references match.
 (k) Null/NaN values in 60in15 data are converted to 0 for chart rendering with caveat noted.
+(l) Output is inline HTML only — no saved/downloadable file artifact.

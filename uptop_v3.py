@@ -159,6 +159,11 @@ def wait_for_analysis(conversation_id, request_id):
     if cleaned != analysis:
         print(f"  [wait_for_analysis] Stripped leaked preamble/trailing text "
               f"({len(analysis) - len(cleaned)} chars removed)")
+    if "<canvas" not in cleaned.lower():
+        raise RuntimeError(
+            f"UpTop V3 HTML report has no <canvas> charts ({len(cleaned)} chars). "
+            "Toqan likely returned a header-only stub. Re-run or tighten the prompt."
+        )
     return cleaned
 
 

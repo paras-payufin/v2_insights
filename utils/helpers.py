@@ -232,9 +232,14 @@ def _recover_answer_from_conversation(conversation_id, headers, base_url):
     return None
 
 
+# Stub HTML shells (header-only) from Toqan file artifacts are typically ~3–5KB.
+# A real multi-section Chart.js monitoring report is much larger.
+_MIN_HTML_REPORT_CHARS = 10000
+
+
 def _validate_finished_answer(answer, attachments, conversation_id):
     """
-    Ensure a finished Toqan payload is a usable inline HTML report.
+    Ensure a finished Toqan payload is a usable HTML report.
     Returns the answer on success; raises RuntimeError otherwise.
     """
     if not answer or not str(answer).strip():
@@ -245,23 +250,34 @@ def _validate_finished_answer(answer, attachments, conversation_id):
         )
 
     looks_like_html = _looks_like_html(answer)
+    answer_len = len(answer.strip())
+
     if attachments and not looks_like_html:
         raise RuntimeError(
             f"Toqan returned status=finished but did not return a valid "
-            f"inline HTML report ({len(answer.strip())} chars, "
+            f"inline HTML report ({answer_len} chars, "
             f"attachments={attachments!r}). "
             f"Answer: {answer.strip()[:300]!r}. "
             f"The model may have generated a downloadable file artifact "
             f"instead of returning the HTML inline. "
             f"conversation_id={conversation_id}"
         )
-    if len(answer.strip()) < 500 and not looks_like_html:
+    if answer_len < 500 and not looks_like_html:
         raise RuntimeError(
             f"Toqan returned status=finished but did not return a valid "
-            f"inline HTML report ({len(answer.strip())} chars, "
+            f"inline HTML report ({answer_len} chars, "
             f"attachments={attachments!r}). "
             f"Answer: {answer.strip()!r}. "
             f"conversation_id={conversation_id}"
+        )
+    if looks_like_html and answer_len < _MIN_HTML_REPORT_CHARS:
+        raise RuntimeError(
+            f"Toqan returned an HTML stub ({answer_len} chars; "
+            f"minimum {_MIN_HTML_REPORT_CHARS}). Likely a header-only shell "
+            f"from a file artifact instead of a full report. "
+            f"attachments={attachments!r}. "
+            f"conversation_id={conversation_id}. "
+            f"Preview: {answer.strip()[:300]!r}"
         )
     return answer
 
@@ -343,8 +359,8 @@ def get_analysis(conversation_id, request_id, headers, base_url):
                 names = [a.get("name") for a in attachments]
                 logging.warning(
                     f"[Poll {attempt}] Toqan response includes {len(attachments)} "
-                    f"file attachment(s): {names}. Prefer inline HTML; will try "
-                    f"attachment recovery if answer is empty/non-HTML."
+                    f"file attachment(s): {names}. Will recover via /download_file "
+                    f"when inline answer is empty, non-HTML, or shorter than the file."
                 )
 
             if not answer.strip():
@@ -369,12 +385,19 @@ def get_analysis(conversation_id, request_id, headers, base_url):
                         f"conversation_id={conversation_id}"
                     )
 
-            # Attachment present with non-HTML inline answer → try download first
-            if attachments and not _looks_like_html(answer):
+            # Prefer downloaded HTML attachment when it is longer / more complete
+            if attachments:
                 recovered = _recover_answer_from_attachments(
                     conversation_id, attachments, headers, base_url
                 )
-                if recovered:
+                if recovered and (
+                    not _looks_like_html(answer) or len(recovered) > len(answer)
+                ):
+                    logging.warning(
+                        f"[Poll {attempt}] Using /download_file content "
+                        f"({len(recovered)} chars) over inline answer "
+                        f"({len(answer)} chars)."
+                    )
                     answer = recovered
 
             logging.info(
