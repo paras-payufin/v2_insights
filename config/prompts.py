@@ -15,21 +15,29 @@ def get_analysis_prompt(
     monitoring_approach = monitoring_approach.lower().replace(" ", "_")
 
     model_specific_p = _load_prompt_file(PROMPTS_DIR / "model_specific" / f"{model_specific}.txt")
-    guardrails = _load_prompt_file(PROMPTS_DIR / "_base" / f"{guardrails_file}.txt")
+    guardrails = (
+        _load_prompt_file(PROMPTS_DIR / "_base" / f"{guardrails_file}.txt")
+        if guardrails_file
+        else ""
+    )
 
     # If the model-specific file is a complete self-contained prompt (starts with
     # a role definition), return it directly. Assembling it with the stub files
     # (guardrails, club context, model_type, monitoring) adds noise and causes
     # the model to echo the instruction fragments rather than produce analysis.
     if model_specific_p.lower().lstrip('*# \n').startswith(("you are", "role:")):
-        return f"{guardrails}\n\n{model_specific_p}"
+        return f"{guardrails}\n\n{model_specific_p}".strip() if guardrails else model_specific_p
 
     # Legacy assembly path — used for models that rely on the stub files.
     club_gen = _load_prompt_file(PROMPTS_DIR / "_base" / f"{club.lower()}_generic.txt")
     model_type_p = _load_prompt_file(PROMPTS_DIR / "model_types" / f"{model_type}.txt")
     monitoring_p = _load_prompt_file(PROMPTS_DIR / "monitoring_approaches" / f"{monitoring_approach}.txt")
 
-    return f"Analyze this report.\n\n{guardrails}\n\n{club_gen}\n\n{model_type_p}\n\n{model_specific_p}\n\n{monitoring_p}"
+    parts = ["Analyze this report."]
+    if guardrails:
+        parts.append(guardrails)
+    parts.extend([club_gen, model_type_p, model_specific_p, monitoring_p])
+    return "\n\n".join(parts)
 
 MODEL_REGISTRY = {
     # CL Risk Models
@@ -38,7 +46,7 @@ MODEL_REGISTRY = {
         'type': 'risk_model',
         'monitoring': 'risk_model',
         'model_specific': 'uptop_v3',
-        'guardrails': 'guardrails_uptop_v3',
+        'guardrails': None,  # self-contained prompt; no guardrails
     },
     'uptop_v3_with_ri': {
         'club': 'CL',

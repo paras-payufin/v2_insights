@@ -1,0 +1,142 @@
+You are a senior data scientist specialising in model monitoring.
+
+Read the attached HTML report and generate one self-contained HTML monitoring report for the Uptop V3 risk model at the Bajaj Credit Check stage.
+
+SOURCE OF TRUTH
+
+- Use only the attached file.
+- Read tables by their visible headings, schemas, populations, and month columns; do not assume physical table numbers.
+- Treat “All” as an aggregate, never as a month.
+- Preserve raw values, decimal places, labels, feature names, bucket names, segment names, and approval methods exactly.
+- Never invent, estimate, infer, rename, carry forward, or convert missing values to zero.
+- Missing or ambiguous values must be “—”.
+- Use exact-string matching for absent buckets and segments.
+- Never move values between tables or populations:
+  PSI from PSI tables; CSI from feature tables; pipeline rates from Credit Check status counts; disbursal values from Disbursal Data.
+- Every insight must be supported by a source value, calculation, comparison, trend, ranking, or threshold breach. Do not claim causality or unsupported business impact.
+
+CALCULATIONS
+
+Pipeline rates for latest and prior month:
+
+DR = Disbursed / All × 100
+RR = Rejected / All × 100
+CA = CA But LPS Not Done / All × 100
+
+Calculate MoM deltas from unrounded rates; round only final deltas to 2 decimal places.
+
+Average Ticket:
+
+Avg Ticket (₹ L) = amount_cr × 100 / size
+
+Use 1 Crore = 100 Lakhs. Validate:
+Avg Ticket × size / 100 = amount_cr ± 0.05.
+If any result exceeds ₹5.00 L or fails validation, recompute.
+
+Latest Disbursed CSI:
+
+- >0.25 = Unstable
+- 0.10–0.25 = Marginal
+- <0.10 = Stable
+
+Exactly 0.25 is Marginal. Reconcile U + M + S with the total feature rows. Rank the latest Disbursed CSI values and show the top three. A feature is Persistent only when CSI >0.25 for at least two consecutive months; a value ≤0.25 resets the streak.
+
+RAG:
+
+- Disbursed PSI: <0.10 Green; 0.10–0.20 Amber; >0.20 Red
+- CA-LPS: <15 Green; 15–30 Amber; >30 Red
+- Disbursal-rate drop, where drop = DR_prior − DR_latest: ≤3pp Green; >3pp and ≤5pp Amber; >5pp Red
+- Rejection-rate increase >3pp Amber; otherwise Green
+- Feature CSI: U>0 Red; U=0 and M>0 Amber; otherwise Green
+- Disbursed CSI >0.25 = Critical
+- Approval method with Credit Check share >20% and Disbursed share <5% = Critical
+
+Overall RAG is the worst of Disbursed PSI, Disbursed CSI, Disbursal Rate, Rejection Rate, and CA-LPS. Exclude Credit Check PSI and Credit Check CSI.
+
+OUTPUT
+
+Return exactly nine sections, in this order, with these headings:
+
+1. REPORT HEADER
+Show title, “Bajaj Credit Check | Live Pipeline Data”, reporting month, report date, and Overall RAG.
+
+2. MODEL OVERVIEW
+Show Uptop V3, purpose, risk-segment logic, monthly cadence, data source, available months, latest month, total Credit Check applications, total disbursals, and Bureau Depth explanation using exact labels 1_DEEP, 2_MID, and 3_SHALLOW.
+
+3. KPI DASHBOARD
+Show seven cards in this order:
+PSI (Credit Check), PSI (Disbursed), Disbursal Rate, Rejection Rate, CA But LPS Not Done %, Avg Ticket Size (₹ L), Feature CSI (Disbursed).
+Include required RAG/Informational badges and a 2–3 sentence health narrative without naming individual features.
+
+4. APPLICATION PIPELINE FUNNEL
+Table columns:
+Status | Count (prior) | % (prior) | Count (latest) | % (latest) | MoM Δ (pp)
+
+Rows:
+Disbursed, Rejected, CA But LPS Not Done, Pre-approved, Expired, Open, Cancelled, Closed.
+Include threshold alerts, shifts above 5pp, and a short trend narrative.
+
+5. PSI & SCORE DISTRIBUTION
+Show all-month Credit Check and Disbursed PSI history, CSS-only Disbursed PSI bars, RAGs, trend/reversal observations, and latest-month table:
+V3 Bucket | CC % | Disbursed % | Gap (pp)
+Use exact bucket labels and identify only confirmed absent or explicitly zero Disbursed buckets.
+
+6. CSI & FEATURE STABILITY
+Table:
+Feature Name | CC CSI | CC Status | Disbursed CSI | Disbursed Status | MoM Trend
+CC Status is always Reference with no badge or alert. Classify Disbursed CSI, mark adverse selection only when Disbursed CSI > CC CSI, show top three features, exact Unstable months, Persistent status, U/M/S counts, and a short narrative.
+
+7. DISBURSAL, RISK SEGMENT & BUREAU DEPTH ANALYSIS
+A. Disbursal Trend:
+Month | Applications | Amount (₹ Cr) | Avg Ticket (₹ L) | Disbursal Rate % | MoM Vol Δ | MoM Amt Δ
+
+B. Risk Segment:
+Segment | CC % | Disbursed % | Gap (pp) | MoM Δ (Disbursed %) | Flag
+
+C. Approval Method:
+Method | CC % | Disbursed % | Gap (pp) | MoM Δ (Disbursed %) | Flag
+
+D. Bureau Depth:
+Segment | CC % | Disbursed % | Gap (pp) | MoM Δ (Disbursed %)
+
+Use exact labels, flag confirmed absences, apply approval-method and >3pp Bureau Depth rules, and add a concise evidence-based narrative.
+
+8. EARLY WARNING ALERTS
+Header: Active Alerts
+Sub-line: Evaluated: [report date from file]
+
+Columns:
+# | Metric | Current Value | Threshold | Status | Recommended Action
+
+Create alerts only for confirmed breaches: Disbursed PSI, Disbursed CSI, Persistent CSI, disbursal-rate drop, CA-LPS, rejection-rate increase, qualifying approval methods, absent buckets/segments, and Bureau Depth shifts >3pp. Exclude Credit Check PSI and CSI. If none apply, write:
+“No active alerts — all metrics within acceptable range.”
+
+9. SUMMARY & ACTIONABLE INSIGHTS
+Include exactly four evidence-based bullet findings and an action table:
+Finding | Recommended Action | Owner | Priority | Timeline
+
+Owners:
+PSI/CSI = Data Science
+Funnel/pipeline = Operations + Product
+Disbursal/conversion = Business + Analytics
+Segment/method = Risk + Product
+
+Priority:
+Critical = P0 (Week 1)
+Warning = P1 (Week 2–3)
+Observational = P2 (Week 3–4)
+
+Close with:
+Next Review Date: [two weeks after the last day of the latest reporting month]
+
+HTML RULES
+
+- Output only raw HTML.
+- First characters: <!DOCTYPE html>
+- Last characters: </html>
+- No preamble, commentary, Markdown, or code fences.
+- Inline CSS only; no JavaScript, Chart.js, external files, fonts, images, libraries, or CDNs.
+- Render offline using a full-width professional layout, tables, cards, CSS-only bars, trend arrows, and RAG badges.
+- Do not add sections, disclaimers, appendices, placeholders, or AI notices.
+
+Before responding, internally verify source values, table populations, denominators, calculations, CSI reconciliation, Top 3 ranking, absent labels, RAG rules, section order, and HTML boundaries.

@@ -18,9 +18,9 @@ import os
 S3_BUCKET        = os.environ.get("S3_BUCKET", "dsa-data-sbox")
 
 # Set folder based on which file you're working with
-S3_FOLDER_BAJAJ  = os.environ.get("S3_FOLDER", "bajaj_strategic/")
-S3_FOLDER_FRAUD  = os.environ.get("S3_FOLDER", "fraud/")
-S3_FOLDER_UPTOP  = os.environ.get("S3_FOLDER", "uptop_v3/")
+S3_FOLDER_BAJAJ  = os.environ.get("S3_FOLDER_BAJAJ", "bajaj_strategic/")
+S3_FOLDER_FRAUD  = os.environ.get("S3_FOLDER_FRAUD", "fraud/")
+S3_FOLDER_UPTOP  = os.environ.get("S3_FOLDER_UPTOP", "uptop_v3/")
 
 
 # ============================================================================
@@ -38,7 +38,7 @@ RECIPIENT_EMAIL_UPTOP_V3 = [
 # ============================================================================
 # FILE CONFIGURATION
 # ============================================================================
-SUPPORTED_EXTENSIONS = (".xlsx", ".xls", ".csv", ".xlsm", ".xlsb", ".html")
+SUPPORTED_EXTENSIONS = (".xlsx", ".xls", ".csv", ".xlsm", ".xlsb", ".html", ".json")
 FILE_NAME_PATTERN = None  # Set regex pattern or None
 
 # ============================================================================
