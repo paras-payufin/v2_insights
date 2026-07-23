@@ -94,67 +94,149 @@ def upload_to_toqan(file_name, file_buffer):
     return file_id
 
 
-def create_analysis_conversation(file_id):
-    """Create analysis conversation with Toqan; returns (conversation_id, request_id)."""
-    print(f"\n[create_analysis_conversation] START — model={MODEL_NAME!r}")
-    time.sleep(5)
+def _briefing_user_message(prompt: str) -> str:
+    """Step-1 message: instructions only — no JSON yet."""
+    return (
+        "You are about to receive a JSON monitoring dataset in my NEXT message "
+        "in this same conversation.\n\n"
+        "FIRST TASK (this message only):\n"
+        "1. Read the report-generation instructions below carefully end-to-end.\n"
+        "2. Internalize every rule (no inventing values, JSON-only source, "
+        "inline HTML output, 30in6 vs 60in15 separation, section list, etc.).\n"
+        "3. Do NOT generate the HTML report yet.\n"
+        "4. Do NOT invent, estimate, or assume any data.\n"
+        "5. Reply briefly confirming you understand the instructions and are "
+        "ready for the JSON file in the next message.\n\n"
+        "======== REPORT GENERATION INSTRUCTIONS ========\n\n"
+        f"{prompt}\n\n"
+        "======== END INSTRUCTIONS ========\n\n"
+        "Confirm readiness only. Wait for the JSON attachment in the next message."
+    )
+
+
+def _generate_user_message() -> str:
+    """Step-2 message: JSON is attached — produce the report now."""
+    return (
+        "The JSON data file is now attached. This is your only data source.\n\n"
+        "Generate the complete stakeholder-ready HTML monitoring report now, "
+        "following the instructions from my previous message exactly.\n"
+        "- Use only values present in the attached JSON\n"
+        "- If a value is missing, omit it or show "
+        "\"Not available in supplied JSON\"\n"
+        "- Return the full HTML inline in your answer "
+        "(first characters must be <!DOCTYPE html>, last must be </html>)\n"
+        "- Do NOT create a downloadable/saved file artifact or return only a filename\n"
+        "- Do NOT invent or estimate missing values\n"
+        "- Populate all required sections with embedded chart data"
+    )
+
+
+def create_prompt_briefing():
+    """
+    Step 1: create a conversation with the report prompt only (no JSON).
+    Returns (conversation_id, request_id).
+    """
+    print(f"\n[create_prompt_briefing] START — model={MODEL_NAME!r}")
+    time.sleep(3)
 
     headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
     prompt = get_prompt_by_model_name(MODEL_NAME)
+    user_message = _briefing_user_message(prompt)
 
-    print(f"  [create_analysis_conversation] prompt length : {len(prompt)} chars")
-    print(f"  [create_analysis_conversation] prompt preview: {prompt[:100]!r}")
-    print(f"  [attach] file_id being sent: {file_id!r}")
-
-    conversation_data = {
-        "user_message": prompt,
-        "private_user_files": [{"id": file_id}],
-    }
-    print(f"  [attach] payload: {str(conversation_data)[:400]!r}")
+    print(f"  [create_prompt_briefing] prompt length : {len(prompt)} chars")
+    print(f"  [create_prompt_briefing] message length: {len(user_message)} chars")
+    print(f"  [create_prompt_briefing] preview: {user_message[:120]!r}")
 
     conv_response = make_api_request(
         "POST",
         f"{TOQAN_BASE_URL}/create_conversation",
         headers,
-        json_data=conversation_data,
+        json_data={"user_message": user_message},
     )
-
     full_resp = conv_response.json()
-    print(f"  [attach] create_conversation full response: {full_resp}")
-    print(f"  [attach] conversation_id: {full_resp.get('conversation_id')!r}")
-
-    resp_str = str(full_resp).lower()
-    if file_id and file_id.lower() in resp_str:
-        print(f"  [attach] ✓ file_id confirmed in response")
-    else:
-        print(f"  [attach] ⚠ WARNING — file_id NOT found in response. "
-              f"File may not be attached. Check 'private_user_files' key format.")
-
-    for key in ("files", "attached_files", "file_ids", "attachments", "private_user_files"):
-        if key in full_resp:
-            print(f"  [attach] response field '{key}': {full_resp[key]!r}")
-
     conversation_id = full_resp["conversation_id"]
     request_id = full_resp["request_id"]
-    print(f"  [attach] request_id: {request_id!r}")
-    print(f"[create_analysis_conversation] END")
+    print(f"  [create_prompt_briefing] conversation_id={conversation_id!r}")
+    print(f"  [create_prompt_briefing] request_id={request_id!r}")
+    print("[create_prompt_briefing] END")
     return conversation_id, request_id
 
 
+def continue_with_json(conversation_id, file_id):
+    """
+    Step 2: same conversation — attach JSON and ask to generate the report.
+    Returns (conversation_id, request_id) for the new turn.
+    """
+    print(f"\n[continue_with_json] START — conversation_id={conversation_id!r}")
+    time.sleep(3)
+
+    headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
+    user_message = _generate_user_message()
+    payload = {
+        "conversation_id": conversation_id,
+        "user_message": user_message,
+        "private_user_files": [{"id": file_id}],
+    }
+    print(f"  [continue_with_json] file_id={file_id!r}")
+    print(f"  [continue_with_json] message preview: {user_message[:120]!r}")
+
+    cont_response = make_api_request(
+        "POST",
+        f"{TOQAN_BASE_URL}/continue_conversation",
+        headers,
+        json_data=payload,
+    )
+    full_resp = cont_response.json()
+    print(f"  [continue_with_json] full response: {full_resp}")
+    request_id = full_resp["request_id"]
+    # API should echo the same conversation_id; prefer response if present
+    conversation_id = full_resp.get("conversation_id") or conversation_id
+    print(f"  [continue_with_json] request_id={request_id!r}")
+    print("[continue_with_json] END")
+    return conversation_id, request_id
+
+
+def start_two_step_analysis(file_id):
+    """
+    Two-step Toqan flow to reduce hallucination:
+      1) Send prompt only → wait for readiness ack
+      2) Continue same conversation with JSON attached → return that request_id
+    """
+    print("\n[start_two_step_analysis] START — two-step prompt → JSON flow")
+    headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
+
+    conversation_id, briefing_request_id = create_prompt_briefing()
+    print("\n⏳ Step 1/2 — waiting for prompt-briefing acknowledgement...")
+    time.sleep(10)
+    briefing = get_analysis(
+        conversation_id,
+        briefing_request_id,
+        headers,
+        TOQAN_BASE_URL,
+        require_html=False,
+    )
+    print(f"  [start_two_step_analysis] briefing ack ({len(briefing)} chars): "
+          f"{briefing[:300]!r}")
+
+    conversation_id, report_request_id = continue_with_json(conversation_id, file_id)
+    print("[start_two_step_analysis] END — report generation started")
+    return conversation_id, report_request_id
+
+
 def wait_for_analysis(conversation_id, request_id):
-    """Wait for and retrieve analysis from Toqan."""
-    print("\n⏳ Waiting for analysis (2-5 min)...")
+    """Wait for and retrieve the HTML analysis from Toqan (step-2 request)."""
+    print("\n⏳ Step 2/2 — waiting for HTML report (2-5 min)...")
     time.sleep(30)
 
     headers = {"X-Api-Key": TOQAN_API_KEY, "accept": "application/json"}
-    analysis = get_analysis(conversation_id, request_id, headers, TOQAN_BASE_URL)
+    analysis = get_analysis(
+        conversation_id, request_id, headers, TOQAN_BASE_URL, require_html=True
+    )
 
     if not analysis:
         raise RuntimeError("No analysis received from Toqan")
 
     # Strip any leaked preamble/meta-commentary before the actual HTML document
-    # (e.g. "I'll now generate the HTML...") — guardrails ask the model not to,
-    # but this is a deterministic safety net regardless of prompt compliance.
     cleaned = extract_html_document(analysis)
     if cleaned != analysis:
         print(f"  [wait_for_analysis] Stripped leaked preamble/trailing text "
@@ -261,7 +343,7 @@ def main():
         s3_key, file_name, _file_size = find_latest_file()
         buffer = download_file(s3_key)
         file_id = upload_to_toqan(file_name, buffer)
-        conversation_id, request_id = create_analysis_conversation(file_id)
+        conversation_id, request_id = start_two_step_analysis(file_id)
         analysis = wait_for_analysis(conversation_id, request_id)
         send_report_email(file_name, analysis, MODEL_NAME)
 
@@ -315,9 +397,10 @@ if _AIRFLOW_AVAILABLE:
         ti.xcom_push(key="file_id", value=file_id)
 
     def _task_start_analysis(**context):
+        """Brief prompt first, then continue with JSON; push step-2 request_id."""
         ti      = context["ti"]
         file_id = ti.xcom_pull(task_ids="upload_file", key="file_id")
-        conv_id, request_id = create_analysis_conversation(file_id)
+        conv_id, request_id = start_two_step_analysis(file_id)
         ti.xcom_push(key="conversation_id", value=conv_id)
         ti.xcom_push(key="request_id", value=request_id)
 

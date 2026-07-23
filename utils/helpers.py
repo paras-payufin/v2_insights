@@ -237,10 +237,11 @@ def _recover_answer_from_conversation(conversation_id, headers, base_url):
 _MIN_HTML_REPORT_CHARS = 10000
 
 
-def _validate_finished_answer(answer, attachments, conversation_id):
+def _validate_finished_answer(answer, attachments, conversation_id, require_html=True):
     """
-    Ensure a finished Toqan payload is a usable HTML report.
-    Returns the answer on success; raises RuntimeError otherwise.
+    Ensure a finished Toqan payload is usable.
+    When require_html=True, enforce a full HTML report.
+    When require_html=False (e.g. prompt-briefing step), only require non-empty text.
     """
     if not answer or not str(answer).strip():
         raise RuntimeError(
@@ -248,6 +249,9 @@ def _validate_finished_answer(answer, attachments, conversation_id):
             f"attachments={attachments!r}. "
             f"conversation_id={conversation_id}"
         )
+
+    if not require_html:
+        return answer
 
     looks_like_html = _looks_like_html(answer)
     answer_len = len(answer.strip())
@@ -282,7 +286,7 @@ def _validate_finished_answer(answer, attachments, conversation_id):
     return answer
 
 
-def get_analysis(conversation_id, request_id, headers, base_url):
+def get_analysis(conversation_id, request_id, headers, base_url, require_html=True):
     """
     Poll GET /get_answer until status == "finished", then return the answer.
 
@@ -293,8 +297,11 @@ def get_analysis(conversation_id, request_id, headers, base_url):
     Args:
         conversation_id: Conversation ID returned by /create_conversation
         request_id:      Request ID returned by /create_conversation
+                         or /continue_conversation
         headers:         API headers (must include X-Api-Key)
         base_url:        Toqan API base URL
+        require_html:    If True, validate a full HTML report. If False, accept
+                         any non-empty reply (used for prompt-briefing turns).
 
     Returns:
         str: Completed answer text
@@ -404,7 +411,9 @@ def get_analysis(conversation_id, request_id, headers, base_url):
                 f"[Poll {attempt}] Completed. Answer length: {len(answer)} chars. "
                 f"Preview: {answer[:200]!r}"
             )
-            return _validate_finished_answer(answer, attachments, conversation_id)
+            return _validate_finished_answer(
+                answer, attachments, conversation_id, require_html=require_html
+            )
 
         elif status == "error":
             raise RuntimeError(
