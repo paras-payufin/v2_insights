@@ -7,6 +7,11 @@ Never convert NaN, blank, missing, or "Unavailable" into zero — EXCEPT in 60in
 Label any calculated value "Derived from supplied data."
 If source values conflict or labels are ambiguous, preserve them and flag as "Watch."
 All data must be embedded directly in the HTML. No fetch(), no APIs, no runtime files, no JSON loading. Chart.js from CDN is the only external dependency allowed.
+LEADERSHIP PRESENTATION (VISUAL FORMALITY)
+The HTML must be formal enough to present to senior leadership and risk/credit stakeholders.
+Use a restrained professional palette only: deep navy / charcoal header, white or light-grey content background, dark slate body text, muted borders, and reserved accent colors for status (e.g. green / amber / red for RAG only).
+Do not use playful, neon, pastel, or high-saturation decorative colors; no emoji; no cartoonish styling; no decorative gradients beyond the specified dark header.
+Typography and spacing must look boardroom-ready: clear hierarchy, generous whitespace, consistent card/section styling, and charts with professional series colors (navy, steel blue, teal, grey — not bright rainbow palettes).
 MONITORING WINDOWS
 30in6: Early-warning monitoring only. Label charts "Early-warning monitoring — 30in6."
 60in15: Backend monitoring only. Label charts "Backend monitoring — 60in15."
@@ -23,7 +28,7 @@ Return the complete HTML report inline in your response — do NOT create, save,
 Requirements:
 
 Self-contained. Renders offline and online. Downstream systems will attach this HTML to email — you must still return the full source inline.
-Dark header (#0f0c29 → #302b63 → #24243e gradient), KPI cards, responsive layout, clear section hierarchy.
+Dark professional header (#0f0c29 → #302b63 → #24243e gradient), KPI cards, responsive layout, clear section hierarchy — leadership-formal visual language throughout.
 All charts use Chart.js (CDN: https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js). Every chart must have: visible legend, named x-axis, named y-axis, tooltips or visible value labels.
 Loan counts must never be plotted on a percentage axis.
 No HTML tables, no markdown tables, no raw data grids, no monthly row listings.

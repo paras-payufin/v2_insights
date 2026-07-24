@@ -102,7 +102,8 @@ def _briefing_user_message(prompt: str) -> str:
         "FIRST TASK (this message only):\n"
         "1. Read the report-generation instructions below carefully end-to-end.\n"
         "2. Internalize every rule (no inventing values, JSON-only source, "
-        "inline HTML output, 30in6 vs 60in15 separation, section list, etc.).\n"
+        "inline HTML output, leadership-formal professional colors, "
+        "30in6 vs 60in15 separation, section list, etc.).\n"
         "3. Do NOT generate the HTML report yet.\n"
         "4. Do NOT invent, estimate, or assume any data.\n"
         "5. Reply briefly confirming you understand the instructions and are "
@@ -127,7 +128,9 @@ def _generate_user_message() -> str:
         "(first characters must be <!DOCTYPE html>, last must be </html>)\n"
         "- Do NOT create a downloadable/saved file artifact or return only a filename\n"
         "- Do NOT invent or estimate missing values\n"
-        "- Populate all required sections with embedded chart data"
+        "- Populate all required sections with embedded chart data\n"
+        "- Keep visuals leadership-formal: professional navy/charcoal/slate "
+        "palette only — no neon, pastel, playful, or emoji styling"
     )
 
 
