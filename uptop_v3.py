@@ -103,6 +103,7 @@ def _briefing_user_message(prompt: str) -> str:
         "1. Read the report-generation instructions below carefully end-to-end.\n"
         "2. Internalize every rule (no inventing values, JSON-only source, "
         "inline HTML output, leadership-formal professional colors, "
+        "distinct chart colors per metric, "
         "30in6 vs 60in15 separation, section list, etc.).\n"
         "3. Do NOT generate the HTML report yet.\n"
         "4. Do NOT invent, estimate, or assume any data.\n"
@@ -130,7 +131,9 @@ def _generate_user_message() -> str:
         "- Do NOT invent or estimate missing values\n"
         "- Populate all required sections with embedded chart data\n"
         "- Keep visuals leadership-formal: professional navy/charcoal/slate "
-        "palette only — no neon, pastel, playful, or emoji styling"
+        "palette only — no neon, pastel, playful, or emoji styling\n"
+        "- For multi-metric charts, use different color families per metric "
+        "(e.g. blue vs teal vs amber vs purple) — not shades of the same color"
     )
 
 

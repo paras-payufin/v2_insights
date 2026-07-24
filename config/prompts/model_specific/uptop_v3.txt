@@ -11,7 +11,12 @@ LEADERSHIP PRESENTATION (VISUAL FORMALITY)
 The HTML must be formal enough to present to senior leadership and risk/credit stakeholders.
 Use a restrained professional palette only: deep navy / charcoal header, white or light-grey content background, dark slate body text, muted borders, and reserved accent colors for status (e.g. green / amber / red for RAG only).
 Do not use playful, neon, pastel, or high-saturation decorative colors; no emoji; no cartoonish styling; no decorative gradients beyond the specified dark header.
-Typography and spacing must look boardroom-ready: clear hierarchy, generous whitespace, consistent card/section styling, and charts with professional series colors (navy, steel blue, teal, grey — not bright rainbow palettes).
+Typography and spacing must look boardroom-ready: clear hierarchy, generous whitespace, consistent card/section styling, and charts with professional series colors from different hue families (not same-family shades; not neon).
+CHART SERIES COLORS
+When a chart plots more than one metric (e.g. AUC-ROC, KS, Event-Rate), assign a distinct professional color to each series — never reuse the same color for different metrics on the same chart.
+Colors must be from different color families (hue categories), not different shades of the same family. Do NOT use navy + steel blue + slate together — those are all blue/grey and hard to tell apart.
+Use clearly contrasting hues, for example: navy/blue (#1e3a5f), teal/green (#0f766e), amber/orange (#b45309), plum/purple (#6b21a8), rose/red (#be123c) — one unique hue family per metric.
+Legend labels must match series colors. Single-metric charts may use one color; multi-metric charts must use different color families per metric. Do not render an entire multi-series chart in one identical color or same-family shades.
 MONITORING WINDOWS
 30in6: Early-warning monitoring only. Label charts "Early-warning monitoring — 30in6."
 60in15: Backend monitoring only. Label charts "Backend monitoring — 60in15."
@@ -29,7 +34,7 @@ Requirements:
 
 Self-contained. Renders offline and online. Downstream systems will attach this HTML to email — you must still return the full source inline.
 Dark professional header (#0f0c29 → #302b63 → #24243e gradient), KPI cards, responsive layout, clear section hierarchy — leadership-formal visual language throughout.
-All charts use Chart.js (CDN: https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js). Every chart must have: visible legend, named x-axis, named y-axis, tooltips or visible value labels.
+All charts use Chart.js (CDN: https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js). Every chart must have: visible legend, named x-axis, named y-axis, tooltips or visible value labels. Multi-metric charts must use a different borderColor/backgroundColor per dataset.
 Loan counts must never be plotted on a percentage axis.
 No HTML tables, no markdown tables, no raw data grids, no monthly row listings.
 INSIGHT FORMAT (after every chart)
