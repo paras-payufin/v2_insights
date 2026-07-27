@@ -73,7 +73,7 @@ REPORT SECTIONS
 Latest monitoring cycle, overall status, positive observations, main risks, early-warning coverage, backend coverage, recommended actions. Do not include a dedicated Credit-check PSI section or chart.
 
 2. KPI Cards
-Create cards only for values available in the source. Include: disbursed PSI, disbursal rate, disbursed count, CA-but-LPS-not-done %, high-drift feature count - check only for Feature Disbursed and not feature overall wherein if feature >= 0.2 mark as drifted , early-warning coverage, backend coverage. Credit-Check PSI may appear as a KPI card only — never as a standalone chart.
+Create cards only for values available in the source. Include: disbursed PSI, disbursal rate, disbursed count, CA-but-LPS-not-done %, early-warning coverage, backend coverage. Do not include high-drift feature count or any feature-drift KPI. Credit-Check PSI may appear as a KPI card only — never as a standalone chart.
 
 3. Disbursed PSI Trend
 Line chart. Y-axis: "PSI value", X-axis: "Monitoring cycle". Highlight latest cycle. Do not display Credit-check PSI as a chart. Include Observed / Business implication / Action below.
@@ -82,29 +82,26 @@ Line chart. Y-axis: "PSI value", X-axis: "Monitoring cycle". Highlight latest cy
 Line chart if available. Y-axis: "Disbursal rate (%)". Show latest and previous-cycle comparison. If no approved threshold exists in source, label "Watch." Include Observed / Business implication / Action below.
 
 5. Score-Distribution Chart
-Grouped or stacked bar chart. X-axis: "Score bucket", Y-axis: "Population count" or "Population share (%)". Use source bucket labels exactly. Do not reproduce as a table. Include Observed / Business implication / Action below.
+Grouped or stacked bar chart using disbursal population data only — do not use Credit-check score distribution. X-axis: "Score bucket", Y-axis: "Population count" or "Population share (%)". Use source bucket labels exactly. Do not reproduce as a table. Include Observed / Business implication / Action below.
 
-6. Feature-Drift Visualization
-Ranked horizontal bars (not a table). X-axis: "Source-reported drift value", Y-axis: "Feature". Each item: feature name, drift value, severity (only if source-supported), recommended action. Apply drifted threshold: a feature is Drifted when its source-reported drift value >= 0.2; values below 0.2 are not Drifted under this rule. If other default thresholds appear in source, label: "Governance default; not a business-approved threshold." Include Observed / Business implication / Action below.
-
-7. Early-Warning Monitoring (30in6 only)
+6. Early-Warning Monitoring (30in6 only)
 For each available cohort (Overall, DSA, OA):
 
 Loan-volume chart: X-axis "Disbursal month", Y-axis "Number of loans".
 Performance chart: Plot AUC-ROC, KS, Event-Rate. Y-axis "Metric value (%)". Gaps for missing values.
 Include Observed / Business implication / Action below each.
-8. Backend Monitoring (60in15 only)
+7. Backend Monitoring (60in15 only)
 Same structure as early-warning but using 60in15 data for Overall, DSA, and OA cohorts. Include the 60in15 caveats. Display unavailable months as zero on the chart line for visual continuity. Never interpret unavailable values as good or bad. Include a prominent caveat: "Where source values are unavailable the chart line drops to zero — this is a visual placeholder only. Unavailable does not mean good or bad performance."
 
-9. Active Alerts
-Use only conditions supported by the source. Possible topics: PSI movement, CA-but-LPS-not-done %, feature drift, disbursal-rate movement, sudden AUC/KS movement, low sample size, missing outcomes, coverage mismatch, unavailable 60in15, zero-count periods, operational funnel concerns, conflicting/ambiguous source values.
+8. Active Alerts
+Use only conditions supported by the source. Possible topics: PSI movement, CA-but-LPS-not-done %, disbursal-rate movement, sudden AUC/KS movement, low sample size, missing outcomes, coverage mismatch, unavailable 60in15, zero-count periods, operational funnel concerns, conflicting/ambiguous source values. Do not include feature-drift alerts.
 
 Each alert: title, actual source value, severity (High/Medium/Low/Watch — use "Watch" when no source threshold exists), why it matters, recommended action.
 
 If the source contains DSA 2024-12 with ~101 loans, include: "The 2024-12 DSA 30in6 metrics are based on 101 loans. These values should not be treated as evidence of model superiority."
 
 EXCLUDE
-Credit-check PSI as a standalone chart. Calibration section. Data-limitations section. Provenance section. Source-file footer. HTML tables. Markdown tables. Raw data dumps. Copied monthly row listings.
+Credit-check PSI as a standalone chart. Feature-drift visualization section. Feature-drift KPIs. Credit-check score distribution. Calibration section. Data-limitations section. Provenance section. Source-file footer. HTML tables. Markdown tables. Raw data dumps. Copied monthly row listings.
 
 PRE-FLIGHT CHECK
 Before finalising, verify:
@@ -116,7 +113,8 @@ Before finalising, verify:
 (f) No Credit-check PSI chart and no calibration section.
 (g) DSA 2024-12 warning present if applicable.
 (h) Document renders standalone offline (Chart.js CDN is the only external dependency).
-(i) All 9 sections present and complete with visible content (not empty placeholders).
+(i) All 8 sections present and complete with visible content (not empty placeholders). No feature-drift section.
 (j) 60in15 charts actually render — canvas elements exist and JS references match.
 (k) Null/NaN values in 60in15 data are converted to 0 for chart rendering with caveat noted.
 (l) Output is inline HTML only — no saved/downloadable file artifact.
+(m) Score-distribution uses disbursal data only (not Credit-check).
