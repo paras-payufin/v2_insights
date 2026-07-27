@@ -47,7 +47,7 @@ REPORT SECTIONS
 Latest monitoring cycle, overall status, positive observations, main risks, early-warning coverage, backend coverage, recommended actions. Do not include a dedicated Credit-check PSI section or chart.
 
 2. KPI Cards
-Create cards only for values available in the source. Include: disbursed PSI, disbursal rate, disbursed count, CA-but-LPS-not-done %, high-drift feature count (only if severity data supports it), early-warning coverage, backend coverage. Credit-Check PSI may appear as a KPI card only — never as a standalone chart.
+Create cards only for values available in the source. Include: disbursed PSI, disbursal rate, disbursed count, CA-but-LPS-not-done %, high-drift feature count - check only for Feature Disbursed and not feature overall wherein if feature >= 0.2 mark as drifted , early-warning coverage, backend coverage. Credit-Check PSI may appear as a KPI card only — never as a standalone chart.
 
 3. Disbursed PSI Trend
 Line chart. Y-axis: "PSI value", X-axis: "Monitoring cycle". Highlight latest cycle. Do not display Credit-check PSI as a chart. Include Observed / Business implication / Action below.
