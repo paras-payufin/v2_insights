@@ -85,7 +85,7 @@ Line chart if available. Y-axis: "Disbursal rate (%)". Show latest and previous-
 Grouped or stacked bar chart. X-axis: "Score bucket", Y-axis: "Population count" or "Population share (%)". Use source bucket labels exactly. Do not reproduce as a table. Include Observed / Business implication / Action below.
 
 6. Feature-Drift Visualization
-Ranked horizontal bars (not a table). X-axis: "Source-reported drift value", Y-axis: "Feature". Each item: feature name, drift value, severity (only if source-supported), recommended action. If default thresholds appear, label: "Governance default; not a business-approved threshold." Include Observed / Business implication / Action below.
+Ranked horizontal bars (not a table). X-axis: "Source-reported drift value", Y-axis: "Feature". Each item: feature name, drift value, severity (only if source-supported), recommended action. Apply drifted threshold: a feature is Drifted when its source-reported drift value >= 0.2; values below 0.2 are not Drifted under this rule. If other default thresholds appear in source, label: "Governance default; not a business-approved threshold." Include Observed / Business implication / Action below.
 
 7. Early-Warning Monitoring (30in6 only)
 For each available cohort (Overall, DSA, OA):
